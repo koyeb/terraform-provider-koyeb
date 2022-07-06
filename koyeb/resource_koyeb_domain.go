@@ -44,7 +44,7 @@ func domainSchema() map[string]*schema.Schema {
 		"app_name": {
 			Type:         schema.TypeString,
 			Optional:     true,
-			Description:  "The app name the domain is assigned",
+			Description:  "The app name the domain is assigned to",
 			ValidateFunc: validation.StringLenBetween(3, 23),
 		},
 		"type": {
@@ -151,7 +151,7 @@ func setDomainAttribute(
 	d.Set("deployment_group", domain.GetDeploymentGroup())
 	d.Set("organization_id", domain.GetOrganizationId())
 	d.Set("intended_cname", domain.GetIntendedCname())
-	d.Set("verified_at", domain.GetVerifiedAt())
+	d.Set("verified_at", domain.GetVerifiedAt().UTC().String())
 	d.Set("created_at", domain.GetCreatedAt().UTC().String())
 	d.Set("updated_at", domain.GetUpdatedAt().UTC().String())
 	d.Set("app_name", appName)
@@ -191,7 +191,7 @@ func resourceKoyebDomainCreate(ctx context.Context, d *schema.ResourceData, meta
 
 func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	var appName *string
+	appName := ""
 
 	res, resp, err := client.DomainsApi.GetDomain(ctx, d.Id()).Execute()
 	if err != nil {
@@ -211,10 +211,10 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 			return diag.Errorf("Error retrieving app assigned to domain: %s (%v %v)", err, resp, res)
 		}
 
-		appName = res.App.Name
+		appName = *res.App.Name
 	}
 
-	setDomainAttribute(d, res.Domain, *appName)
+	setDomainAttribute(d, res.Domain, appName)
 
 	return nil
 }
