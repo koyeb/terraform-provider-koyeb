@@ -34,6 +34,7 @@ func domainSchema() map[string]*schema.Schema {
 		"deployment_group": {
 			Type:        schema.TypeString,
 			Computed:    true,
+			Optional:    true,
 			Description: "The deployment group assigned to the domain",
 		},
 		"organization_id": {
@@ -147,6 +148,7 @@ func setDomainAttribute(
 	d.Set("name", domain.GetName())
 	d.Set("version", domain.GetVersion())
 	d.Set("status", domain.GetStatus())
+	d.Set("type", domain.GetType())
 	d.Set("messages", strings.Join(domain.GetMessages(), " "))
 	d.Set("deployment_group", domain.GetDeploymentGroup())
 	d.Set("organization_id", domain.GetOrganizationId())
