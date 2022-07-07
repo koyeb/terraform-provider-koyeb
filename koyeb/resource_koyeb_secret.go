@@ -294,7 +294,7 @@ func secretSchema() map[string]*schema.Schema {
 		"value": {
 			Type:        schema.TypeString,
 			Optional:    true,
-			Description: "The CNAME record to point the Secret to",
+			Description: "The secret value",
 			Sensitive:   true,
 			ConflictsWith: []string{
 				"docker_hub_registry",
@@ -433,13 +433,13 @@ func setSecretAttribute(d *schema.ResourceData, secret koyeb.Secret) error {
 	d.SetId(secret.GetId())
 	d.Set("name", secret.GetName())
 	d.Set("type", secret.GetType())
-	d.Set("value", secret.GetValue())
-	d.Set("docker_hub_registry", flattenDockerHubRegistry(secret.DockerHubRegistry))
-	d.Set("github_registry", flattenGitHubRegistry(secret.GithubRegistry))
-	d.Set("gitlab_registry", flattenGitLabRegistry(secret.GitlabRegistry))
-	d.Set("digital_ocean_container_registry", flattenDigitalOceanRegistry(secret.DigitalOceanRegistry))
-	d.Set("private_registry", flattenPrivateRegistry(secret.PrivateRegistry))
-	d.Set("azure_container_registry", flattenAzureContainerRegistry(secret.AzureContainerRegistry))
+	// d.Set("value", secret.GetValue())
+	// d.Set("docker_hub_registry", flattenDockerHubRegistry(secret.DockerHubRegistry))
+	// d.Set("github_registry", flattenGitHubRegistry(secret.GithubRegistry))
+	// d.Set("gitlab_registry", flattenGitLabRegistry(secret.GitlabRegistry))
+	// d.Set("digital_ocean_container_registry", flattenDigitalOceanRegistry(secret.DigitalOceanRegistry))
+	// d.Set("private_registry", flattenPrivateRegistry(secret.PrivateRegistry))
+	// d.Set("azure_container_registry", flattenAzureContainerRegistry(secret.AzureContainerRegistry))
 	d.Set("organization_id", secret.GetOrganizationId())
 	d.Set("created_at", secret.GetCreatedAt().UTC().String())
 	d.Set("updated_at", secret.GetUpdatedAt().UTC().String())
