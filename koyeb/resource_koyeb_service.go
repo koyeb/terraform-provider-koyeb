@@ -511,12 +511,27 @@ func flattenDeployment(deployment *koyeb.Deployment) []interface{} {
 
 func serviceSchema() map[string]*schema.Schema {
 	service := map[string]*schema.Schema{
+		"id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The id of the service",
+		},
+		"name": {
+			Type:        schema.TypeString,
+			Description: "The name of the service",
+			Computed:    true,
+		},
 		"app_name": {
 			Type:         schema.TypeString,
 			Required:     true,
 			ForceNew:     true,
 			Description:  "The app name the service is assigned",
 			ValidateFunc: validation.StringLenBetween(3, 23),
+		},
+		"app_id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The app id the service is assigned",
 		},
 		"definition": {
 			Type:        schema.TypeSet,
@@ -628,6 +643,7 @@ func setServiceAttribute(
 	d.SetId(service.GetId())
 	d.Set("id", service.GetId())
 	d.Set("name", service.GetName())
+	d.Set("app_id", service.GetAppId())
 	d.Set("version", service.GetVersion())
 	d.Set("status", service.GetStatus())
 	d.Set("messages", strings.Join(service.GetMessages(), " "))
