@@ -49,38 +49,6 @@ func testSweepDomain(string) error {
 
 func TestAccKoyebDomain_Basic(t *testing.T) {
 	var domain koyeb.Domain
-	domainName := randomTestName() + ".com"
-
-	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories,
-		CheckDestroy:      testAccCheckKoyebDomainDestroy,
-		Steps: []resource.TestStep{
-			{
-				Config: fmt.Sprintf(testAccCheckKoyebDomainConfig_basic, domainName),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckKoyebDomainExists("koyeb_domain.foobar", &domain),
-					testAccCheckKoyebDomainAttributes(&domain, domainName),
-					resource.TestCheckResourceAttr(
-						"koyeb_domain.foobar", "name", domainName),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "id"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "organization_id"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "type"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "intended_cname"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "status"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "messages"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "version"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "verified_at"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "updated_at"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.foobar", "created_at"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccKoyebDomain_WithAppName(t *testing.T) {
-	var domain koyeb.Domain
 	appName := randomTestName()
 	domainName := appName + ".com"
 
@@ -90,23 +58,42 @@ func TestAccKoyebDomain_WithAppName(t *testing.T) {
 		CheckDestroy:      testAccCheckKoyebDomainDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testAccCheckKoyebDomainConfig_withAppName, appName, domainName),
+				Config: fmt.Sprintf(testAccCheckKoyebDomainConfig_basic, domainName),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckKoyebDomainExists("koyeb_domain.bar", &domain),
+					testAccCheckKoyebDomainExists("koyeb_domain.foo", &domain),
 					testAccCheckKoyebDomainAttributes(&domain, domainName),
 					resource.TestCheckResourceAttr(
-						"koyeb_domain.bar", "name", domainName),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "id"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "organization_id"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "type"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "intended_cname"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "status"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "messages"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "version"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "verified_at"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "updated_at"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "created_at"),
-					resource.TestCheckResourceAttrSet("koyeb_domain.bar", "app_name"),
+						"koyeb_domain.foo", "name", domainName),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "type"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "intended_cname"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "status"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "messages"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "version"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "verified_at"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "updated_at"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "created_at"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebDomainConfig_basic_app_name_update, appName, domainName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebDomainExists("koyeb_domain.foo", &domain),
+					testAccCheckKoyebDomainAttributes(&domain, domainName),
+					resource.TestCheckResourceAttr(
+						"koyeb_domain.foo", "name", domainName),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "type"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "intended_cname"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "status"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "messages"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "version"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "verified_at"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "updated_at"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "created_at"),
+					resource.TestCheckResourceAttrSet("koyeb_domain.foo", "app_name"),
 				),
 			},
 		},
@@ -173,16 +160,16 @@ func testAccCheckKoyebDomainExists(n string, domain *koyeb.Domain) resource.Test
 }
 
 const testAccCheckKoyebDomainConfig_basic = `
-resource "koyeb_domain" "foobar" {
+resource "koyeb_domain" "foo" {
 	name       = "%s"
 }`
 
-const testAccCheckKoyebDomainConfig_withAppName = `
-resource "koyeb_app" "foo" {
+const testAccCheckKoyebDomainConfig_basic_app_name_update = `
+resource "koyeb_app" "bar" {
 	name = "%s"
 }
 
-resource "koyeb_domain" "bar" {
+resource "koyeb_domain" "foo" {
 	name       = "%s"
-	app_name   = "${koyeb_app.foo.name}"
+	app_name   = "${koyeb_app.bar.name}"
 }`
