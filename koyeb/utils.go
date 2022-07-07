@@ -14,7 +14,7 @@ func Ptr[T any](v T) *T {
 	return &v
 }
 
-func waitForResourceStatus[T interface{}](fn func() (T, *_nethttp.Response, error), resourceName string, targetStatus []string, timeout time.Duration, throwErrorIfNotFound bool) error {
+func waitForResourceStatus[T any](fn func() (T, *_nethttp.Response, error), resourceName string, targetStatus []string, timeout time.Duration, throwErrorIfNotFound bool) error {
 	var status string
 	now := time.Now()
 	retryInterval := 5 * time.Second
