@@ -85,15 +85,14 @@ func TestAccKoyebApp_Basic(t *testing.T) {
 
 func testAccCheckKoyebAppDestroy(s *terraform.State) error {
 	client := testAccProvider.Meta().(*koyeb.APIClient)
-	targetStatus := []string{"DELETED", "DELETING"}
 
 	for _, rs := range s.RootModule().Resources {
 		if rs.Type != "koyeb_app" {
 			continue
 		}
 
-		err := waitForResourceStatus(client.AppsApi.GetApp(context.Background(), rs.Primary.ID).Execute, "App", targetStatus, 1, false)
-		if err != nil {
+		_, _, err := client.AppsApi.GetApp(context.Background(), rs.Primary.ID).Execute()
+		if err == nil {
 			return fmt.Errorf("App still exists: %s ", err)
 		}
 	}
