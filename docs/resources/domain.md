@@ -21,7 +21,7 @@ Domain resource in the Koyeb Terraform provider.
 
 ### Optional
 
-- `app_name` (String) The app name the domain is assigned
+- `app_name` (String) The app name the domain is assigned to
 - `intended_cname` (String) The CNAME record to point the domain to
 - `messages` (String) The status messages of the domain
 - `verified_at` (String) The date and time of when the domain was last verified

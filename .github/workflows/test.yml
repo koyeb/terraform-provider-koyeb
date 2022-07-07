@@ -101,7 +101,7 @@ jobs:
         # Set whatever additional acceptance test env vars here. You can
         # optionally use data from your repository secrets using the
         # following syntax:
-        # SOME_VAR: ${{ secrets.SOME_VAR }}
+        KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
 
       run: |
         go test -v -cover ./koyeb

@@ -56,6 +56,7 @@ func configure(version string, p *schema.Provider) func(context.Context, *schema
 
 		userAgent := p.UserAgent("terraform-provider-koyeb", version)
 		koyebClientConfig := koyeb.NewConfiguration()
+		koyebClientConfig.Host = "app.koyeb.com"
 		koyebClientConfig.DefaultHeader["Authorization"] = "Bearer " + os.Getenv("KOYEB_TOKEN")
 		koyebClientConfig.UserAgent = userAgent
 
