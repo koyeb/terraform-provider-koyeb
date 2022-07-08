@@ -3,7 +3,7 @@ module terraform-provider-koyeb
 go 1.18
 
 require (
-	github.com/hashicorp/terraform-plugin-docs v0.12.0
+	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.18.0
 	github.com/koyeb/koyeb-api-client-go v0.0.0-20220624145233-fb1639b21157
 	github.com/koyeb/koyeb-cli v1.2.1-0.20220624130942-9d3654586774
