@@ -31,7 +31,7 @@ func New(version string) func() *schema.Provider {
 			DataSourcesMap: map[string]*schema.Resource{
 				"koyeb_app": dataSourceKoyebApp(),
 				// "koyeb_service": dataSourceKoyebService(),
-				// "koyeb_domain":  dataSourceKoyebDomain(),
+				"koyeb_domain": dataSourceKoyebDomain(),
 				// "koyeb_secret":  dataSourceKoyebSecret(),
 			},
 			ResourcesMap: map[string]*schema.Resource{

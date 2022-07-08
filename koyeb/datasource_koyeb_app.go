@@ -25,7 +25,7 @@ func dataSourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta in
 	id, err := appMapper.ResolveID(d.Get("name").(string))
 
 	if err != nil {
-		return diag.Errorf("Error retrieving app: %s %v", err, d.Get("name"))
+		return diag.Errorf("Error retrieving app: %s", err)
 	}
 
 	d.SetId(id)

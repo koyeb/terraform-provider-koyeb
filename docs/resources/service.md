@@ -27,9 +27,11 @@ Service resource in the Koyeb Terraform provider.
 ### Read-Only
 
 - `active_deployment` (String) The service active deployment id
+- `app_id` (String) The app id the service is assigned
 - `created_at` (String) The date and time of when the service was created
-- `id` (String) The ID of this resource.
+- `id` (String) The id of the service
 - `latest_deployment` (String) The service latest deployment id
+- `name` (String) The name of the service
 - `organization_id` (String) The organization id owning the service
 - `paused_at` (String) The date and time of when the service was last updated
 - `resumed_at` (String) The date and time of when the service was last updated
