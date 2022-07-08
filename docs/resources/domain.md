@@ -22,6 +22,7 @@ Domain resource in the Koyeb Terraform provider.
 ### Optional
 
 - `app_name` (String) The app name the domain is assigned to
+- `deployment_group` (String) The deployment group assigned to the domain
 - `intended_cname` (String) The CNAME record to point the domain to
 - `messages` (String) The status messages of the domain
 - `verified_at` (String) The date and time of when the domain was last verified
@@ -29,7 +30,6 @@ Domain resource in the Koyeb Terraform provider.
 ### Read-Only
 
 - `created_at` (String) The date and time of when the domain was created
-- `deployment_group` (String) The deployment group assigned to the domain
 - `id` (String) The id of the domain
 - `organization_id` (String) The organization id owning the domain
 - `status` (String) The status of the domain
