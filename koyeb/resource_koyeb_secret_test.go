@@ -135,8 +135,7 @@ func testAccCheckKoyebSecretExists(n string, secret *koyeb.Secret) resource.Test
 			return fmt.Errorf("Record not found")
 		}
 
-		d := res.GetSecret()
-		*secret = d
+		*secret = res.GetSecret()
 
 		return nil
 	}
