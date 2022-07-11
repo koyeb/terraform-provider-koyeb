@@ -2,6 +2,7 @@ package koyeb
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -51,13 +52,13 @@ func New() func() *schema.Provider {
 			},
 		}
 
-		p.ConfigureContextFunc = configure(version, p)
+		p.ConfigureContextFunc = configure(p)
 
 		return p
 	}
 }
 
-func configure(version string, p *schema.Provider) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
+func configure(p *schema.Provider) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	return func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
 		if os.Getenv("KOYEB_TOKEN") == "" {
 			return nil, diag.Errorf("Empty KOYEB_TOKEN environment variable")
@@ -66,7 +67,7 @@ func configure(version string, p *schema.Provider) func(context.Context, *schema
 		userAgent := p.UserAgent("terraform-provider-koyeb", version)
 		koyebClientConfig := koyeb.NewConfiguration()
 		koyebClientConfig.Host = "app.koyeb.com"
-		koyebClientConfig.DefaultHeader["Authorization"] = "Bearer " + os.Getenv("KOYEB_TOKEN")
+		koyebClientConfig.DefaultHeader["Authorization"] = fmt.Sprintf("Bearer %s", os.Getenv("KOYEB_TOKEN"))
 		koyebClientConfig.UserAgent = userAgent
 
 		client := koyeb.NewAPIClient(koyebClientConfig)

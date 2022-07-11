@@ -10,7 +10,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func Ptr[T any](v T) *T {
+func toOpt[T any](v T) *T {
 	return &v
 }
 

@@ -81,7 +81,7 @@ func resourceKoyebAppCreate(ctx context.Context, d *schema.ResourceData, meta in
 	client := meta.(*koyeb.APIClient)
 
 	res, resp, err := client.AppsApi.CreateApp(context.Background()).Body(koyeb.CreateApp{
-		Name: Ptr(d.Get("name").(string)),
+		Name: toOpt(d.Get("name").(string)),
 	}).Execute()
 	if err != nil {
 		return diag.Errorf("Error creating app: %s (%v %v)", err, resp, res)
@@ -106,7 +106,7 @@ func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta inte
 			return nil
 		}
 
-		return diag.Errorf("Error retrieving app: (%s) %s (%v %v)", d.Id(), err, resp, res)
+		return diag.Errorf("Error retrieving app: %s (%v %v)", err, resp, res)
 	}
 
 	setAppAttribute(d, *res.App)
@@ -120,7 +120,7 @@ func resourceKoyebAppDelete(ctx context.Context, d *schema.ResourceData, meta in
 	for {
 		res, resp, err := client.ServicesApi.ListServices(context.Background()).AppId(d.Id()).Limit("100").Execute()
 		if err != nil {
-			return diag.Errorf("Error retrieving service: %s (%v %v)", err, resp, res)
+			return diag.Errorf("Error retrieving app: %s (%v %v)", err, resp, res)
 		}
 		if res.GetCount() == 0 {
 			break
@@ -132,7 +132,7 @@ func resourceKoyebAppDelete(ctx context.Context, d *schema.ResourceData, meta in
 
 			_, resp, err := client.ServicesApi.DeleteService(ctx, svc.GetId()).Execute()
 			if err != nil {
-				return diag.Errorf("Error deleting service: %s (%v %v", err, resp, res)
+				return diag.Errorf("Error deleting app: %s (%v %v", err, resp, res)
 			}
 		}
 		time.Sleep(2 * time.Second)

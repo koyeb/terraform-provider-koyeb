@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
 
@@ -18,15 +19,17 @@ func sharedConfig() (interface{}, error) {
 		return nil, fmt.Errorf("Empty KOYEB_TOKEN environment variable")
 	}
 
+	p := schema.Provider{}
+	userAgent := p.UserAgent("terraform-provider-koyeb", version)
+
 	apiHost := os.Getenv("KOYEB_API_URL")
 	if apiHost == "" {
 		apiHost = "app.koyeb.com"
 	}
 
 	koyebClientConfig := koyeb.NewConfiguration()
-	koyebClientConfig.Host = "staging.koyeb.com"
 	koyebClientConfig.DefaultHeader["Authorization"] = "Bearer " + os.Getenv("KOYEB_TOKEN")
-	koyebClientConfig.UserAgent = "terraform-provider-koyeb-test"
+	koyebClientConfig.UserAgent = userAgent
 
 	client := koyeb.NewAPIClient(koyebClientConfig)
 
