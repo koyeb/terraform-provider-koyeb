@@ -99,7 +99,7 @@ func dataSourceKoyebService() *schema.Resource {
 func dataSourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	mapper := idmapper.NewMapper(ctx, client)
+	mapper := idmapper.NewMapper(context.Background(), client)
 	serviceMapper := mapper.Service()
 
 	id, err := serviceMapper.ResolveID(d.Get("slug").(string))

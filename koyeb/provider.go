@@ -9,6 +9,15 @@ import (
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
 
+var (
+	// these will be set by the goreleaser configuration
+	// to appropriate values for the compiled binary
+	version string = "0.1.0"
+
+	// goreleaser can also pass the specific commit if you want
+	// commit  string = ""
+)
+
 func init() {
 	// Set descriptions to support markdown syntax, this will be used in document generation
 	// and the language server.
@@ -25,7 +34,7 @@ func init() {
 	// }
 }
 
-func New(version string) func() *schema.Provider {
+func New() func() *schema.Provider {
 	return func() *schema.Provider {
 		p := &schema.Provider{
 			DataSourcesMap: map[string]*schema.Resource{
