@@ -1,9 +1,11 @@
 > ⚠️ This provider is under active development. Below are the requirements before considering ready to release
 
 - [x] Add Resource support
-- [ ] Add Data Source support
-- [ ] Add Import support (optional)
-- [ ] Write tests for the provider
+- [x] Add Data Source support
+- [x] Write tests for the provider
+- [ ] Add/Test Import support (optional)
+- [ ] Improve service resource for full support of Git and Docket options
+
 
 Koyeb Terraform Provider
 ==================
