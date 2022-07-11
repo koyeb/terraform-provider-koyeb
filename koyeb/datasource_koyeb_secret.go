@@ -19,7 +19,7 @@ func dataSourceKoyebSecret() *schema.Resource {
 func dataSourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	mapper := idmapper.NewMapper(ctx, client)
+	mapper := idmapper.NewMapper(context.Background(), client)
 	SecretMapper := mapper.Secret()
 
 	id, err := SecretMapper.ResolveID(d.Get("name").(string))

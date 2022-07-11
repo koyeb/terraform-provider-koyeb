@@ -162,7 +162,7 @@ func setDomainAttribute(
 
 func resourceKoyebDomainCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(ctx, client)
+	mapper := idmapper.NewMapper(context.Background(), client)
 	appMapper := mapper.App()
 	var appId string
 
@@ -176,7 +176,7 @@ func resourceKoyebDomainCreate(ctx context.Context, d *schema.ResourceData, meta
 		appId = id
 	}
 
-	res, resp, err := client.DomainsApi.CreateDomain(ctx).Body(koyeb.CreateDomain{
+	res, resp, err := client.DomainsApi.CreateDomain(context.Background()).Body(koyeb.CreateDomain{
 		Name:  Ptr(d.Get("name").(string)),
 		AppId: &appId,
 		Type:  Ptr(koyeb.DOMAINTYPE_CUSTOM),
@@ -195,7 +195,7 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 	client := meta.(*koyeb.APIClient)
 	appName := ""
 
-	res, resp, err := client.DomainsApi.GetDomain(ctx, d.Id()).Execute()
+	res, resp, err := client.DomainsApi.GetDomain(context.Background(), d.Id()).Execute()
 	if err != nil {
 		// If the domain is somehow already destroyed, mark as
 		// successfully gone
@@ -208,7 +208,7 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 	}
 
 	if *res.Domain.AppId != "" {
-		res, resp, err := client.AppsApi.GetApp(ctx, *res.Domain.AppId).Execute()
+		res, resp, err := client.AppsApi.GetApp(context.Background(), *res.Domain.AppId).Execute()
 		if err != nil {
 			return diag.Errorf("Error retrieving app assigned to domain: %s (%v %v)", err, resp, res)
 		}
@@ -223,7 +223,7 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 
 func resourceKoyebDomainUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(ctx, client)
+	mapper := idmapper.NewMapper(context.Background(), client)
 	appMapper := mapper.App()
 	var appId string
 
@@ -237,7 +237,7 @@ func resourceKoyebDomainUpdate(ctx context.Context, d *schema.ResourceData, meta
 		appId = id
 	}
 
-	res, resp, err := client.DomainsApi.UpdateDomain(ctx, d.Id()).Body(koyeb.UpdateDomain{AppId: &appId}).Execute()
+	res, resp, err := client.DomainsApi.UpdateDomain(context.Background(), d.Id()).Body(koyeb.UpdateDomain{AppId: &appId}).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error retrieving domain: %s (%v %v)", err, resp, res)
@@ -250,7 +250,7 @@ func resourceKoyebDomainUpdate(ctx context.Context, d *schema.ResourceData, meta
 func resourceKoyebDomainDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.DomainsApi.DeleteDomain(ctx, d.Id()).Execute()
+	res, resp, err := client.DomainsApi.DeleteDomain(context.Background(), d.Id()).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error deleting domain: %s (%v %v)", err, resp, res)

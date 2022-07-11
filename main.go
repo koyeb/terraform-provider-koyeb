@@ -17,15 +17,6 @@ import (
 // can be customized.
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 
-var (
-	// these will be set by the goreleaser configuration
-	// to appropriate values for the compiled binary
-	version string = "dev"
-
-	// goreleaser can also pass the specific commit if you want
-	// commit  string = ""
-)
-
 func main() {
 	var debugMode bool
 
@@ -33,9 +24,8 @@ func main() {
 	flag.Parse()
 
 	opts := &plugin.ServeOpts{
-		Debug: debugMode,
-
-		ProviderFunc: koyeb.New(version),
+		Debug:        debugMode,
+		ProviderFunc: koyeb.New(),
 	}
 
 	plugin.Serve(opts)

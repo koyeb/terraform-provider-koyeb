@@ -19,7 +19,7 @@ func dataSourceKoyebApp() *schema.Resource {
 func dataSourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	mapper := idmapper.NewMapper(ctx, client)
+	mapper := idmapper.NewMapper(context.Background(), client)
 	appMapper := mapper.App()
 
 	id, err := appMapper.ResolveID(d.Get("name").(string))
