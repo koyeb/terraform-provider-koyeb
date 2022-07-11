@@ -134,8 +134,7 @@ func testAccCheckKoyebAppExists(n string, app *koyeb.App) resource.TestCheckFunc
 			return fmt.Errorf("Record not found")
 		}
 
-		a := res.GetApp()
-		*app = a
+		*app = res.GetApp()
 
 		return nil
 	}

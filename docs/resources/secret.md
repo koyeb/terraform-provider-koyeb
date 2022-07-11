@@ -28,7 +28,7 @@ Secret resource in the Koyeb Terraform provider.
 - `gitlab_registry` (Block Set, Max: 1) The GitLab registry configuration to use (see [below for nested schema](#nestedblock--gitlab_registry))
 - `private_registry` (Block Set, Max: 1) The DigitalOcean registry configuration to use (see [below for nested schema](#nestedblock--private_registry))
 - `type` (String) The secret type
-- `value` (String, Sensitive) The CNAME record to point the Secret to
+- `value` (String, Sensitive) The secret value
 
 ### Read-Only
 

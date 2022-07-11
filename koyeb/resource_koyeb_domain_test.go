@@ -152,8 +152,7 @@ func testAccCheckKoyebDomainExists(n string, domain *koyeb.Domain) resource.Test
 			return fmt.Errorf("Record not found")
 		}
 
-		d := res.GetDomain()
-		*domain = d
+		*domain = res.GetDomain()
 
 		return nil
 	}

@@ -39,6 +39,21 @@ data "koyeb_app" "bar" {
 					testAccCheckDataSourceKoyebAppAttributes(&app, appName),
 					resource.TestCheckResourceAttr(
 						"data.koyeb_app.bar", "name", appName),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "id"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "organization_id"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "updated_at"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "created_at"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.id"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.app_name"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.created_at"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.deployment_group"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.name"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.organization_id"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.status"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.type"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.created_at"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.updated_at"),
+					resource.TestCheckResourceAttrSet("data.koyeb_app.bar", "domains.0.version"),
 				),
 			},
 		},
@@ -80,8 +95,7 @@ func testAccCheckDataSourceKoyebAppExists(n string, app *koyeb.App) resource.Tes
 			return fmt.Errorf("Record not found")
 		}
 
-		a := res.GetApp()
-		*app = a
+		*app = res.GetApp()
 
 		return nil
 	}
