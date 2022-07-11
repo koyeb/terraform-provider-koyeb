@@ -787,7 +787,7 @@ func setServiceAttribute(
 
 func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(ctx, client)
+	mapper := idmapper.NewMapper(context.Background(), client)
 	appMapper := mapper.App()
 	var appId string
 
@@ -803,7 +803,7 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 
 	definition := expandDeploymentDefinition(d.Get("definition").(*schema.Set).List()[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicesApi.CreateService(ctx).Body(koyeb.CreateService{
+	res, resp, err := client.ServicesApi.CreateService(context.Background()).Body(koyeb.CreateService{
 		AppId:      &appId,
 		Definition: definition,
 	}).Execute()
@@ -822,7 +822,7 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 	// var activeDeployment *koyeb.Deployment
 	// var latestDeployment *koyeb.Deployment
 
-	res, resp, err := client.ServicesApi.GetService(ctx, d.Id()).Execute()
+	res, resp, err := client.ServicesApi.GetService(context.Background(), d.Id()).Execute()
 	if err != nil {
 		// If the service is somehow already destroyed, mark as
 		// successfully gone
@@ -866,7 +866,7 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 
 	definition := expandDeploymentDefinition(d.Get("definition").(*schema.Set).List()[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicesApi.UpdateService(ctx, d.Id()).Body(koyeb.UpdateService{
+	res, resp, err := client.ServicesApi.UpdateService(context.Background(), d.Id()).Body(koyeb.UpdateService{
 		Definition: definition,
 	}).Execute()
 
@@ -882,7 +882,7 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 func resourceKoyebServiceDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
+	res, resp, err := client.ServicesApi.DeleteService(context.Background(), d.Id()).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error deleting service: %s (%v %v)", err, resp, res)
