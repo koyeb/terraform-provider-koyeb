@@ -37,14 +37,14 @@ func expandEnvs(config []interface{}) *[]koyeb.DeploymentEnv {
 		env := rawEnv.(map[string]interface{})
 
 		e := koyeb.DeploymentEnv{
-			Key: Ptr(env["key"].(string)),
+			Key: toOpt(env["key"].(string)),
 		}
 
 		if env["value"] != nil {
-			e.Value = Ptr(env["value"].(string))
+			e.Value = toOpt(env["value"].(string))
 		}
 		if env["secret"] != nil {
-			e.Value = Ptr(env["secret"].(string))
+			e.Value = toOpt(env["secret"].(string))
 		}
 
 		envs = append(envs, e)
@@ -102,8 +102,8 @@ func expandPorts(config []interface{}) *[]koyeb.DeploymentPort {
 		port := rawPort.(map[string]interface{})
 
 		p := koyeb.DeploymentPort{
-			Port:     Ptr(int64(port["port"].(int))),
-			Protocol: Ptr(port["protocol"].(string)),
+			Port:     toOpt(int64(port["port"].(int))),
+			Protocol: toOpt(port["protocol"].(string)),
 		}
 
 		ports = append(ports, p)
@@ -152,8 +152,8 @@ func expandRoutes(config []interface{}) *[]koyeb.DeploymentRoute {
 		route := rawRoute.(map[string]interface{})
 
 		r := koyeb.DeploymentRoute{
-			Port: Ptr(int64(route["port"].(int))),
-			Path: Ptr(route["path"].(string)),
+			Port: toOpt(int64(route["port"].(int))),
+			Path: toOpt(route["path"].(string)),
 		}
 
 		routes = append(routes, r)
@@ -196,7 +196,7 @@ func expandInstanceTypes(config []interface{}) *[]koyeb.DeploymentInstanceType {
 		instanceType := rawInstanceType.(map[string]interface{})
 
 		r := koyeb.DeploymentInstanceType{
-			Type: Ptr(instanceType["type"].(string)),
+			Type: toOpt(instanceType["type"].(string)),
 		}
 
 		instanceTypes = append(instanceTypes, r)
@@ -245,8 +245,8 @@ func expandScalings(config []interface{}) *[]koyeb.DeploymentScaling {
 		scaling := rawScaling.(map[string]interface{})
 
 		r := koyeb.DeploymentScaling{
-			Max: Ptr(int64(scaling["max"].(int))),
-			Min: Ptr(int64(scaling["min"].(int))),
+			Max: toOpt(int64(scaling["max"].(int))),
+			Min: toOpt(int64(scaling["min"].(int))),
 		}
 
 		scalings = append(scalings, r)
@@ -302,19 +302,19 @@ func expandDockerSource(config []interface{}) *koyeb.DockerSource {
 	rawDockerSource := config[0].(map[string]interface{})
 
 	dockerSource := &koyeb.DockerSource{
-		Image: Ptr(rawDockerSource["image"].(string)),
+		Image: toOpt(rawDockerSource["image"].(string)),
 	}
 
 	if rawDockerSource["command"] != nil {
-		dockerSource.Command = Ptr(rawDockerSource["command"].(string))
+		dockerSource.Command = toOpt(rawDockerSource["command"].(string))
 	}
 
 	if len(rawDockerSource["args"].([]interface{})) > 0 {
-		dockerSource.Args = Ptr(rawDockerSource["args"].([]string))
+		dockerSource.Args = toOpt(rawDockerSource["args"].([]string))
 	}
 
 	if rawDockerSource["image_registry_secret"] != nil {
-		dockerSource.ImageRegistrySecret = Ptr(rawDockerSource["image_registry_secret"].(string))
+		dockerSource.ImageRegistrySecret = toOpt(rawDockerSource["image_registry_secret"].(string))
 	}
 
 	return dockerSource
@@ -370,19 +370,19 @@ func expandGitSource(config []interface{}) *koyeb.GitSource {
 	rawGitSource := config[0].(map[string]interface{})
 
 	gitSource := &koyeb.GitSource{
-		Repository:     Ptr(rawGitSource["repository"].(string)),
-		Branch:         Ptr(rawGitSource["branch"].(string)),
-		BuildCommand:   Ptr(rawGitSource["build_command"].(string)),
-		RunCommand:     Ptr(rawGitSource["run_command"].(string)),
-		NoDeployOnPush: Ptr(rawGitSource["no_deploy_on_push"].(bool)),
+		Repository:     toOpt(rawGitSource["repository"].(string)),
+		Branch:         toOpt(rawGitSource["branch"].(string)),
+		BuildCommand:   toOpt(rawGitSource["build_command"].(string)),
+		RunCommand:     toOpt(rawGitSource["run_command"].(string)),
+		NoDeployOnPush: toOpt(rawGitSource["no_deploy_on_push"].(bool)),
 	}
 
 	// if rawGitSource["build_command"] != nil {
-	// 	gitSource.BuildCommand = Ptr(rawGitSource["build_command"].(string))
+	// 	gitSource.BuildCommand = toOpt(rawGitSource["build_command"].(string))
 	// }
 
 	// if rawGitSource["run_command"] != nil {
-	// 	gitSource.RunCommand = Ptr(rawGitSource["run_command"].(string))
+	// 	gitSource.RunCommand = toOpt(rawGitSource["run_command"].(string))
 	// }
 
 	return gitSource
@@ -492,7 +492,7 @@ func expandDeploymentDefinition(configmap map[string]interface{}) *koyeb.Deploym
 	rawDeploymentDefinition := configmap
 
 	deploymentDefinition := &koyeb.DeploymentDefinition{
-		Name:          Ptr(rawDeploymentDefinition["name"].(string)),
+		Name:          toOpt(rawDeploymentDefinition["name"].(string)),
 		Env:           expandEnvs(rawDeploymentDefinition["env"].(*schema.Set).List()),
 		Ports:         expandPorts(rawDeploymentDefinition["ports"].(*schema.Set).List()),
 		Routes:        expandRoutes(rawDeploymentDefinition["routes"].(*schema.Set).List()),
@@ -795,7 +795,7 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 		id, err := appMapper.ResolveID(d.Get("app_name").(string))
 
 		if err != nil {
-			return diag.Errorf("Error creating domain: %s", err)
+			return diag.Errorf("Error creating service: %s", err)
 		}
 
 		appId = id

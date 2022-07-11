@@ -177,9 +177,9 @@ func resourceKoyebDomainCreate(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	res, resp, err := client.DomainsApi.CreateDomain(context.Background()).Body(koyeb.CreateDomain{
-		Name:  Ptr(d.Get("name").(string)),
+		Name:  toOpt(d.Get("name").(string)),
 		AppId: &appId,
-		Type:  Ptr(koyeb.DOMAINTYPE_CUSTOM),
+		Type:  toOpt(koyeb.DOMAINTYPE_CUSTOM),
 	}).Execute()
 	if err != nil {
 		return diag.Errorf("Error creating domain: %s (%v %v)", err, resp, res)
@@ -204,7 +204,7 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 			return nil
 		}
 
-		return diag.Errorf("Error retrieving domain: %s (%v %v", err, resp, res)
+		return diag.Errorf("Error retrieving domain: %s (%v %v)", err, resp, res)
 	}
 
 	if *res.Domain.AppId != "" {
