@@ -29,10 +29,10 @@ func New(version string) func() *schema.Provider {
 	return func() *schema.Provider {
 		p := &schema.Provider{
 			DataSourcesMap: map[string]*schema.Resource{
-				"koyeb_app": dataSourceKoyebApp(),
-				// "koyeb_service": dataSourceKoyebService(),
-				"koyeb_domain": dataSourceKoyebDomain(),
-				"koyeb_secret": dataSourceKoyebSecret(),
+				"koyeb_app":     dataSourceKoyebApp(),
+				"koyeb_service": dataSourceKoyebService(),
+				"koyeb_domain":  dataSourceKoyebDomain(),
+				"koyeb_secret":  dataSourceKoyebSecret(),
 			},
 			ResourcesMap: map[string]*schema.Resource{
 				"koyeb_app":     resourceKoyebApp(),
