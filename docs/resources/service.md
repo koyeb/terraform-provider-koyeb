@@ -53,8 +53,9 @@ Required:
 
 Optional:
 
-- `docker` (Block Set) (see [below for nested schema](#nestedblock--definition--docker))
+- `docker` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--docker))
 - `env` (Block Set) (see [below for nested schema](#nestedblock--definition--env))
+- `git` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git))
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
 
 <a id="nestedblock--definition--instance_types"></a>
@@ -90,6 +91,12 @@ Required:
 
 - `image` (String) The Docker image to use to support your service
 
+Optional:
+
+- `args` (List of String) The Docker args to use
+- `command` (String) The Docker command to use
+- `image_registy_secret` (String) The Koyeb secret containing the container registry credentials
+
 
 <a id="nestedblock--definition--env"></a>
 ### Nested Schema for `definition.env`
@@ -98,6 +105,21 @@ Required:
 
 - `key` (String) The name of the environment variable
 - `value` (String, Sensitive) The value of the environment variable
+
+
+<a id="nestedblock--definition--git"></a>
+### Nested Schema for `definition.git`
+
+Required:
+
+- `branch` (String) The GitHub branch to deploy
+- `repository` (String) The GitHub repository to deploy
+
+Optional:
+
+- `build_command` (String) The command to build your application during the build phase. If your application does not require a build command, leave this field empty
+- `no_deploy_on_push` (Boolean) If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch
+- `run_command` (String) The command to run your application once the built is completed
 
 
 <a id="nestedblock--definition--routes"></a>

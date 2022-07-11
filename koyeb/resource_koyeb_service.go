@@ -278,6 +278,22 @@ func dockerSchema() *schema.Resource {
 				Required:    true,
 				Description: "The Docker image to use to support your service",
 			},
+			"command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The Docker command to use",
+			},
+			"args": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The Docker args to use",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"image_registy_secret": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The Koyeb secret containing the container registry credentials",
+			},
 		},
 	}
 }
@@ -289,6 +305,18 @@ func expandDockerSource(config []interface{}) *koyeb.DockerSource {
 		Image: Ptr(rawDockerSource["image"].(string)),
 	}
 
+	if rawDockerSource["command"] != nil {
+		dockerSource.Command = Ptr(rawDockerSource["command"].(string))
+	}
+
+	if len(rawDockerSource["args"].([]interface{})) > 0 {
+		dockerSource.Args = Ptr(rawDockerSource["args"].([]string))
+	}
+
+	if rawDockerSource["image_registry_secret"] != nil {
+		dockerSource.ImageRegistrySecret = Ptr(rawDockerSource["image_registry_secret"].(string))
+	}
+
 	return dockerSource
 }
 
@@ -297,6 +325,78 @@ func flattenDocker(dockerSource *koyeb.DockerSource) []interface{} {
 
 	r := make(map[string]interface{})
 	r["image"] = dockerSource.Image
+	r["command"] = dockerSource.Command
+	r["args"] = dockerSource.Args
+	r["image_registry_secret"] = dockerSource.ImageRegistrySecret
+
+	result = append(result, r)
+
+	return result
+}
+
+func gitSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"repository": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The GitHub repository to deploy",
+			},
+			"branch": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The GitHub branch to deploy",
+			},
+			"build_command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The command to build your application during the build phase. If your application does not require a build command, leave this field empty",
+			},
+			"run_command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The command to run your application once the built is completed",
+			},
+			"no_deploy_on_push": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch",
+			},
+		},
+	}
+}
+
+func expandGitSource(config []interface{}) *koyeb.GitSource {
+	rawGitSource := config[0].(map[string]interface{})
+
+	gitSource := &koyeb.GitSource{
+		Repository:     Ptr(rawGitSource["repository"].(string)),
+		Branch:         Ptr(rawGitSource["branch"].(string)),
+		BuildCommand:   Ptr(rawGitSource["build_command"].(string)),
+		RunCommand:     Ptr(rawGitSource["run_command"].(string)),
+		NoDeployOnPush: Ptr(rawGitSource["no_deploy_on_push"].(bool)),
+	}
+
+	// if rawGitSource["build_command"] != nil {
+	// 	gitSource.BuildCommand = Ptr(rawGitSource["build_command"].(string))
+	// }
+
+	// if rawGitSource["run_command"] != nil {
+	// 	gitSource.RunCommand = Ptr(rawGitSource["run_command"].(string))
+	// }
+
+	return gitSource
+}
+
+func flattenGit(gitSource *koyeb.GitSource) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["repository"] = gitSource.Repository
+	r["branch"] = gitSource.Branch
+	r["build_command"] = gitSource.BuildCommand
+	r["run_command"] = gitSource.RunCommand
+	r["no_deploy_on_push"] = gitSource.NoDeployOnPush
 
 	result = append(result, r)
 
@@ -317,6 +417,14 @@ func deploymentDefinitionSchena() *schema.Resource {
 				Optional: true,
 				Elem:     dockerSchema(),
 				Set:      schema.HashResource(dockerSchema()),
+				MaxItems: 1,
+			},
+			"git": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     gitSchema(),
+				Set:      schema.HashResource(gitSchema()),
+				MaxItems: 1,
 			},
 			"env": {
 				Type:     schema.TypeSet,
@@ -385,13 +493,22 @@ func expandDeploymentDefinition(configmap map[string]interface{}) *koyeb.Deploym
 
 	deploymentDefinition := &koyeb.DeploymentDefinition{
 		Name:          Ptr(rawDeploymentDefinition["name"].(string)),
-		Docker:        expandDockerSource(rawDeploymentDefinition["docker"].(*schema.Set).List()),
 		Env:           expandEnvs(rawDeploymentDefinition["env"].(*schema.Set).List()),
 		Ports:         expandPorts(rawDeploymentDefinition["ports"].(*schema.Set).List()),
 		Routes:        expandRoutes(rawDeploymentDefinition["routes"].(*schema.Set).List()),
 		Scalings:      expandScalings(rawDeploymentDefinition["scalings"].(*schema.Set).List()),
 		InstanceTypes: expandInstanceTypes(rawDeploymentDefinition["instance_types"].(*schema.Set).List()),
 		Regions:       expandRegions(rawDeploymentDefinition["regions"].(*schema.Set).List()),
+	}
+
+	git := rawDeploymentDefinition["git"].(*schema.Set).List()
+	if len(git) > 0 {
+		deploymentDefinition.Git = expandGitSource(git)
+	}
+
+	docker := rawDeploymentDefinition["docker"].(*schema.Set).List()
+	if len(docker) > 0 {
+		deploymentDefinition.Docker = expandDockerSource(docker)
 	}
 
 	return deploymentDefinition
@@ -403,6 +520,7 @@ func flattenDeploymentDefinition(deployment *koyeb.DeploymentDefinition) []inter
 	r := make(map[string]interface{})
 	r["name"] = deployment.Name
 	r["docker"] = flattenDocker(deployment.Docker)
+	r["git"] = flattenGit(deployment.Git)
 	r["env"] = flattenEnvs(deployment.Env)
 	r["ports"] = flattenPorts(deployment.Ports)
 	r["routes"] = flattenRoutes(deployment.Routes)
