@@ -19,7 +19,7 @@ var testAccProviders map[string]*schema.Provider
 var testAccProviderFactories map[string]func() (*schema.Provider, error)
 
 func init() {
-	testAccProvider = New()()
+	testAccProvider = New("test")()
 	testAccProviders = map[string]*schema.Provider{
 		"koyeb": testAccProvider,
 	}

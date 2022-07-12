@@ -20,7 +20,7 @@ func sharedConfig() (interface{}, error) {
 	}
 
 	p := schema.Provider{}
-	userAgent := p.UserAgent("terraform-provider-koyeb", version)
+	userAgent := p.UserAgent("terraform-provider-koyeb", "test")
 
 	apiHost := os.Getenv("KOYEB_API_URL")
 	if apiHost == "" {

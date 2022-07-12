@@ -10,15 +10,6 @@ import (
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
 
-var (
-	// these will be set by the goreleaser configuration
-	// to appropriate values for the compiled binary
-	version string = "0.1.0"
-
-	// goreleaser can also pass the specific commit if you want
-	// commit  string = ""
-)
-
 func init() {
 	// Set descriptions to support markdown syntax, this will be used in document generation
 	// and the language server.
@@ -35,7 +26,7 @@ func init() {
 	// }
 }
 
-func New() func() *schema.Provider {
+func New(version string) func() *schema.Provider {
 	return func() *schema.Provider {
 		p := &schema.Provider{
 			DataSourcesMap: map[string]*schema.Resource{
@@ -52,13 +43,13 @@ func New() func() *schema.Provider {
 			},
 		}
 
-		p.ConfigureContextFunc = configure(p)
+		p.ConfigureContextFunc = configure(p, version)
 
 		return p
 	}
 }
 
-func configure(p *schema.Provider) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
+func configure(p *schema.Provider, version string) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	return func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
 		if os.Getenv("KOYEB_TOKEN") == "" {
 			return nil, diag.Errorf("Empty KOYEB_TOKEN environment variable")
