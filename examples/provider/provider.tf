@@ -7,8 +7,8 @@ terraform {
   }
 }
 provider "koyeb" {
-  # You need to set this in your .bashrc
-  # export KOYEB_TOKEN="Your API TOKEN"
+  #
+  # Use the KOYEB_TOKEN env variable to set your Koyeb API token.
   #
 }
 

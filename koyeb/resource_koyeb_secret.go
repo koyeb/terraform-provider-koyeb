@@ -273,12 +273,22 @@ func flattenAzureContainerRegistry(azureContainerRegistry *koyeb.AzureContainerR
 
 func secretSchema() map[string]*schema.Schema {
 	secret := map[string]*schema.Schema{
+		"id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The secret ID",
+		},
 		"name": {
 			Type:         schema.TypeString,
 			Description:  "The secret name",
 			ForceNew:     true,
 			Required:     true,
 			ValidateFunc: validation.StringLenBetween(2, 64),
+		},
+		"organization_id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The organization ID owning the secret",
 		},
 		"type": {
 			Type:        schema.TypeString,
@@ -395,20 +405,15 @@ func secretSchema() map[string]*schema.Schema {
 			},
 			Set: schema.HashResource(privateRegistrySchema()),
 		},
-		"organization_id": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The organization id owning the app",
-		},
 		"updated_at": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The date and time of when the Secret was last updated",
+			Description: "The date and time of when the secret was last updated",
 		},
 		"created_at": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The date and time of when the Secret was created",
+			Description: "The date and time of when the secret was created",
 		},
 	}
 
