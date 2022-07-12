@@ -13,6 +13,11 @@ import (
 
 func appSchema() map[string]*schema.Schema {
 	app := map[string]*schema.Schema{
+		"id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The app ID",
+		},
 		"name": {
 			Type:         schema.TypeString,
 			Required:     true,
@@ -20,15 +25,10 @@ func appSchema() map[string]*schema.Schema {
 			Description:  "The app name",
 			ValidateFunc: validation.StringLenBetween(3, 23),
 		},
-		"id": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The app id",
-		},
 		"organization_id": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The organization id owning the app",
+			Description: "The organization ID owning the app",
 		},
 		"domains": {
 			Type: schema.TypeList,

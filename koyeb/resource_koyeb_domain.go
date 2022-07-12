@@ -14,17 +14,17 @@ import (
 
 func domainSchema() map[string]*schema.Schema {
 	domain := map[string]*schema.Schema{
+		"id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The domain ID",
+		},
 		"name": {
 			Type:         schema.TypeString,
 			Description:  "The domain name",
 			ForceNew:     true,
 			Required:     true,
 			ValidateFunc: validation.NoZeroValues,
-		},
-		"id": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The id of the domain",
 		},
 		"version": {
 			Type:        schema.TypeString,
@@ -40,7 +40,7 @@ func domainSchema() map[string]*schema.Schema {
 		"organization_id": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The organization id owning the domain",
+			Description: "The organization ID owning the domain",
 		},
 		"app_name": {
 			Type:         schema.TypeString,

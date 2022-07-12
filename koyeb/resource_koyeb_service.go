@@ -81,6 +81,7 @@ func portSchema() *schema.Resource {
 				Type:        schema.TypeInt,
 				Required:    true,
 				Description: "The internal port on which this service's run command will listen",
+				ValidateFunc: validation.IntBetween(1, 65535),
 			},
 			"protocol": {
 				Type:        schema.TypeString,
@@ -134,12 +135,12 @@ func routeSchema() *schema.Resource {
 				Type:        schema.TypeInt,
 				Required:    true,
 				Description: "The internal port on which this service's run command will listen",
+				ValidateFunc: validation.IntBetween(1, 65535),
 			},
 			"path": {
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Path specifies an route by HTTP path prefix. Paths must start with / and must be unique within the app",
-				Sensitive:   true,
+				Description: "Path specifies a route by HTTP path prefix. Paths must start with / and must be unique within the app",
 			},
 		},
 	}
@@ -226,13 +227,13 @@ func scalingSchema() *schema.Resource {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     1,
-				Description: "The instance type to use to support your service",
+				Description: "The minimal number of instances to use to support your service",
 			},
 			"max": {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Default:     1,
-				Description: "The instance type to use to support your service",
+				Description: "The maximum number of instance to use to support your service",
 			},
 		},
 	}
@@ -632,24 +633,24 @@ func serviceSchema() map[string]*schema.Schema {
 		"id": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The id of the service",
+			Description: "The service ID",
 		},
 		"name": {
 			Type:        schema.TypeString,
-			Description: "The name of the service",
+			Description: "The service name",
 			Computed:    true,
 		},
 		"app_name": {
 			Type:         schema.TypeString,
 			Required:     true,
 			ForceNew:     true,
-			Description:  "The app name the service is assigned",
+			Description:  "The app name the service is assigned to",
 			ValidateFunc: validation.StringLenBetween(3, 23),
 		},
 		"app_id": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The app id the service is assigned",
+			Description: "The app id the service is assigned to",
 		},
 		"definition": {
 			Type:        schema.TypeSet,
@@ -662,19 +663,19 @@ func serviceSchema() map[string]*schema.Schema {
 		"organization_id": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The organization id owning the service",
+			Description: "The organization ID owning the service",
 			// Elem:        deploymentSchema(),
 		},
 		"active_deployment": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The service active deployment id",
+			Description: "The service active deployment ID",
 			// Elem:        deploymentSchema(),
 		},
 		"latest_deployment": {
 			Type:        schema.TypeString,
 			Computed:    true,
-			Description: "The service latest deployment id",
+			Description: "The service latest deployment ID",
 			// Elem:        deploymentSchema(),
 		},
 		"version": {
