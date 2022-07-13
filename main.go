@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"terraform-provider-koyeb/koyeb"
+	"github.com/koyeb/terraform-provider-koyeb/koyeb"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 )
