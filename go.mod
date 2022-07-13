@@ -1,4 +1,4 @@
-module terraform-provider-koyeb
+module github.com/koyeb/terraform-provider-koyeb
 
 go 1.18
 
