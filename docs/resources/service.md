@@ -140,7 +140,11 @@ Optional:
 Required:
 
 - `key` (String) The name of the environment variable
-- `value` (String, Sensitive) The value of the environment variable
+
+Optional:
+
+- `secret` (String, Sensitive) The secret name to use as the value of the environment variable
+- `value` (String) The value of the environment variable
 
 
 <a id="nestedblock--definition--git"></a>
