@@ -22,8 +22,13 @@ func envSchema() *schema.Resource {
 			},
 			"value": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "The value of the environment variable",
+			},
+			"secret": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The secret name to use as the value of the environment variable",
 				Sensitive:   true,
 			},
 		},
@@ -40,11 +45,11 @@ func expandEnvs(config []interface{}) *[]koyeb.DeploymentEnv {
 			Key: toOpt(env["key"].(string)),
 		}
 
-		if env["value"] != nil {
+		if env["value"] != nil && env["value"].(string) != "" {
 			e.Value = toOpt(env["value"].(string))
 		}
-		if env["secret"] != nil {
-			e.Value = toOpt(env["secret"].(string))
+		if env["secret"] != nil && env["secret"].(string) != "" {
+			e.Secret = toOpt(env["secret"].(string))
 		}
 
 		envs = append(envs, e)
@@ -78,9 +83,9 @@ func portSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
 			"port": {
-				Type:        schema.TypeInt,
-				Required:    true,
-				Description: "The internal port on which this service's run command will listen",
+				Type:         schema.TypeInt,
+				Required:     true,
+				Description:  "The internal port on which this service's run command will listen",
 				ValidateFunc: validation.IntBetween(1, 65535),
 			},
 			"protocol": {
@@ -132,9 +137,9 @@ func routeSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
 			"port": {
-				Type:        schema.TypeInt,
-				Required:    true,
-				Description: "The internal port on which this service's run command will listen",
+				Type:         schema.TypeInt,
+				Required:     true,
+				Description:  "The internal port on which this service's run command will listen",
 				ValidateFunc: validation.IntBetween(1, 65535),
 			},
 			"path": {
