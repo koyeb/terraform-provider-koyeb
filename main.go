@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+
 	"github.com/koyeb/terraform-provider-koyeb/koyeb"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
@@ -20,7 +21,7 @@ import (
 var (
 	// these will be set by the goreleaser configuration
 	// to appropriate values for the compiled binary
-	version string = "v0.1.0-beta"
+	version string = "v0.1.0"
 
 	// goreleaser can also pass the specific commit if you want
 	// commit  string = ""
