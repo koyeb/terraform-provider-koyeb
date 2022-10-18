@@ -131,7 +131,7 @@ Optional:
 
 - `args` (List of String) The Docker args to use
 - `command` (String) The Docker command to use
-- `image_registy_secret` (String) The Koyeb secret containing the container registry credentials
+- `image_registry_secret` (String) The Koyeb secret containing the container registry credentials
 
 
 <a id="nestedblock--definition--env"></a>

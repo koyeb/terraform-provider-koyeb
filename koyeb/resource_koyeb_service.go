@@ -315,9 +315,12 @@ func expandDockerSource(config []interface{}) *koyeb.DockerSource {
 		dockerSource.Command = toOpt(rawDockerSource["command"].(string))
 	}
 
-	if len(rawDockerSource["args"].([]interface{})) > 0 {
-		dockerSource.Args = toOpt(rawDockerSource["args"].([]string))
+	rawArgs := rawDockerSource["args"].([]interface{})
+	args := make([]string, len(rawArgs))
+	for i, v := range rawArgs {
+		args[i] = v.(string)
 	}
+	dockerSource.Args = toOpt(args)
 
 	if rawDockerSource["image_registry_secret"] != nil {
 		dockerSource.ImageRegistrySecret = toOpt(rawDockerSource["image_registry_secret"].(string))
