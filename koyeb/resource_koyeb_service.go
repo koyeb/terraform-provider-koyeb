@@ -295,7 +295,7 @@ func dockerSchema() *schema.Resource {
 				Description: "The Docker args to use",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
-			"image_registy_secret": {
+			"image_registry_secret": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Description: "The Koyeb secret containing the container registry credentials",
