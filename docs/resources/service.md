@@ -32,11 +32,15 @@ resource "koyeb_service" "my-service" {
       key   = "FOO"
       value = "BAR"
     }
+    env {
+      key   = "PORT"
+      value = "3000"
+    }
     routes {
       path = "/"
       port = 3000
     }
-    regions = ["par"]
+    regions = ["fra"]
     docker {
       image = "koyeb/demo"
     }
