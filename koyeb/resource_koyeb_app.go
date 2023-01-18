@@ -3,7 +3,6 @@ package koyeb
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -117,28 +116,8 @@ func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta inte
 func resourceKoyebAppDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	for {
-		res, resp, err := client.ServicesApi.ListServices(context.Background()).AppId(d.Id()).Limit("100").Execute()
-		if err != nil {
-			return diag.Errorf("Error retrieving app: %s (%v %v)", err, resp, res)
-		}
-		if res.GetCount() == 0 {
-			break
-		}
-		for _, svc := range res.GetServices() {
-			if svc.GetStatus() == koyeb.SERVICESTATUS_DELETING || svc.GetStatus() == koyeb.SERVICESTATUS_DELETED {
-				continue
-			}
-
-			_, resp, err := client.ServicesApi.DeleteService(ctx, svc.GetId()).Execute()
-			if err != nil {
-				return diag.Errorf("Error deleting app: %s (%v %v", err, resp, res)
-			}
-		}
-		time.Sleep(2 * time.Second)
-	}
-
 	res, resp, err := client.AppsApi.DeleteApp(context.Background(), d.Id()).Execute()
+
 	if err != nil {
 		return diag.Errorf("Error deleting app: %s (%v %v)", err, resp, res)
 	}

@@ -175,7 +175,7 @@ resource "koyeb_service" "bar" {
 		  path = "/"
 		  port = 3000
 		}
-		regions = ["par"]
+		regions = ["fra"]
 		docker {
 		  image = "koyeb/demo"
 		}
@@ -214,7 +214,7 @@ resource "koyeb_service" "bar" {
 		  path = "/"
 		  port = 8080
 		}
-		regions = ["par"]
+		regions = ["fra"]
 		git {
 		  repository = "github.com/koyeb/example-flask"
 		  branch = "main"

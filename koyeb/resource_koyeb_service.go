@@ -418,6 +418,7 @@ func deploymentDefinitionSchena() *schema.Resource {
 			"name": {
 				Type:         schema.TypeString,
 				Required:     true,
+				ForceNew:     true,
 				Description:  "The service name",
 				ValidateFunc: validation.StringLenBetween(3, 64),
 			},

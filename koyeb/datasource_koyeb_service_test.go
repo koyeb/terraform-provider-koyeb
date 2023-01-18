@@ -42,7 +42,7 @@ resource "koyeb_service" "bar" {
 		  path = "/"
 		  port = 3000
 		}
-		regions = ["par"]
+		regions = ["fra"]
 		docker {
 		  image = "koyeb/demo"
 		}
