@@ -33,7 +33,7 @@ func testSweepApp(string) error {
 		return err
 	}
 
-	for _, a := range *res.Apps {
+	for _, a := range res.Apps {
 		if strings.HasPrefix(a.GetName(), testNamePrefix) {
 			log.Printf("Destroying app %s", *a.Name)
 

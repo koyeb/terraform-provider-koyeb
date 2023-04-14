@@ -34,7 +34,7 @@ func testSweepService(string) error {
 		return err
 	}
 
-	for _, a := range *res.Services {
+	for _, a := range res.Services {
 		if strings.HasPrefix(a.GetName(), testNamePrefix) {
 			log.Printf("Destroying service %s", *a.Name)
 
@@ -60,7 +60,7 @@ func TestAccKoyebService_Basic(t *testing.T) {
 				Config: fmt.Sprintf(testAccCheckKoyebServiceConfig_basic_docker, appName, appName),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckKoyebServiceExists("koyeb_service.bar", &service),
-					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "docker"),
+					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "service"),
 					resource.TestCheckResourceAttrSet("koyeb_service.bar", "id"),
 					resource.TestCheckResourceAttrSet("koyeb_service.bar", "organization_id"),
 					resource.TestCheckResourceAttrSet("koyeb_service.bar", "updated_at"),
@@ -79,7 +79,7 @@ func TestAccKoyebService_Basic(t *testing.T) {
 				Config: fmt.Sprintf(testAccCheckKoyebServiceConfig_basic_git, appName, appName),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckKoyebServiceExists("koyeb_service.bar", &service),
-					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "git"),
+					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "service"),
 					resource.TestCheckResourceAttrSet("koyeb_service.bar", "id"),
 					resource.TestCheckResourceAttrSet("koyeb_service.bar", "organization_id"),
 					resource.TestCheckResourceAttrSet("koyeb_service.bar", "updated_at"),
@@ -155,7 +155,7 @@ resource "koyeb_app" "foo" {
 resource "koyeb_service" "bar" {
 	app_name = "%s"
 	definition {
-		name = "docker"
+		name = "service"
 		instance_types {
 		  type = "micro"
 		}
@@ -194,7 +194,7 @@ resource "koyeb_app" "foo" {
 resource "koyeb_service" "bar" {
 	app_name = "%s"
 	definition {
-		name = "git"
+		name = "service"
 		instance_types {
 		  type = "micro"
 		}

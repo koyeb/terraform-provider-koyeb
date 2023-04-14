@@ -58,7 +58,7 @@ resource "koyeb_service" "my-service" {
 ### Required
 
 - `app_name` (String) The app name the service is assigned to
-- `definition` (Block Set, Min: 1, Max: 1) The service deployment definition (see [below for nested schema](#nestedblock--definition))
+- `definition` (Block List, Min: 1, Max: 1) The service deployment definition (see [below for nested schema](#nestedblock--definition))
 
 ### Optional
 

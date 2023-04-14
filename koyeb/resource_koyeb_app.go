@@ -71,7 +71,7 @@ func setAppAttribute(d *schema.ResourceData, app koyeb.App) error {
 	d.Set("organization_id", app.GetOrganizationId())
 	d.Set("created_at", app.GetCreatedAt().UTC().String())
 	d.Set("updated_at", app.GetUpdatedAt().UTC().String())
-	d.Set("domains", flattenDomains(app.Domains, app.GetName()))
+	d.Set("domains", flattenDomains(&app.Domains, app.GetName()))
 
 	return nil
 }
@@ -79,7 +79,7 @@ func setAppAttribute(d *schema.ResourceData, app koyeb.App) error {
 func resourceKoyebAppCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.AppsApi.CreateApp(context.Background()).Body(koyeb.CreateApp{
+	res, resp, err := client.AppsApi.CreateApp(context.Background()).App(koyeb.CreateApp{
 		Name: toOpt(d.Get("name").(string)),
 	}).Execute()
 	if err != nil {

@@ -108,7 +108,7 @@ func flattenDomains(domains *[]koyeb.Domain, appName string) []map[string]interf
 		r["updated_at"] = domain.GetUpdatedAt().UTC().String()
 		r["app_name"] = appName
 		if messages, ok := domain.GetMessagesOk(); ok && len(domain.GetMessages()) > 0 {
-			r["messages"] = strings.Join(*messages, " ")
+			r["messages"] = strings.Join(messages, " ")
 		}
 
 		if verifiedAt, ok := domain.GetVerifiedAtOk(); ok {
@@ -176,7 +176,7 @@ func resourceKoyebDomainCreate(ctx context.Context, d *schema.ResourceData, meta
 		appId = id
 	}
 
-	res, resp, err := client.DomainsApi.CreateDomain(context.Background()).Body(koyeb.CreateDomain{
+	res, resp, err := client.DomainsApi.CreateDomain(context.Background()).Domain(koyeb.CreateDomain{
 		Name:  toOpt(d.Get("name").(string)),
 		AppId: &appId,
 		Type:  toOpt(koyeb.DOMAINTYPE_CUSTOM),
@@ -237,7 +237,7 @@ func resourceKoyebDomainUpdate(ctx context.Context, d *schema.ResourceData, meta
 		appId = id
 	}
 
-	res, resp, err := client.DomainsApi.UpdateDomain(context.Background(), d.Id()).Body(koyeb.UpdateDomain{AppId: &appId}).Execute()
+	res, resp, err := client.DomainsApi.UpdateDomain(context.Background(), d.Id()).Domain(koyeb.UpdateDomain{AppId: &appId}).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error retrieving domain: %s (%v %v)", err, resp, res)
