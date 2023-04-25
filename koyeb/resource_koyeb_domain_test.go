@@ -34,7 +34,7 @@ func testSweepDomain(string) error {
 		return err
 	}
 
-	for _, d := range *res.Domains {
+	for _, d := range res.Domains {
 		if strings.HasPrefix(d.GetName(), testNamePrefix) {
 			log.Printf("Destroying domain %s", *d.Name)
 

@@ -35,7 +35,7 @@ func envSchema() *schema.Resource {
 	}
 }
 
-func expandEnvs(config []interface{}) *[]koyeb.DeploymentEnv {
+func expandEnvs(config []interface{}) []koyeb.DeploymentEnv {
 	envs := make([]koyeb.DeploymentEnv, 0, len(config))
 
 	for _, rawEnv := range config {
@@ -55,7 +55,7 @@ func expandEnvs(config []interface{}) *[]koyeb.DeploymentEnv {
 		envs = append(envs, e)
 	}
 
-	return &envs
+	return envs
 }
 
 func flattenEnvs(envs *[]koyeb.DeploymentEnv) []map[string]interface{} {
@@ -101,7 +101,7 @@ func portSchema() *schema.Resource {
 	}
 }
 
-func expandPorts(config []interface{}) *[]koyeb.DeploymentPort {
+func expandPorts(config []interface{}) []koyeb.DeploymentPort {
 	ports := make([]koyeb.DeploymentPort, 0, len(config))
 
 	for _, rawPort := range config {
@@ -115,7 +115,7 @@ func expandPorts(config []interface{}) *[]koyeb.DeploymentPort {
 		ports = append(ports, p)
 	}
 
-	return &ports
+	return ports
 }
 
 func flattenPorts(ports *[]koyeb.DeploymentPort) []map[string]interface{} {
@@ -151,7 +151,7 @@ func routeSchema() *schema.Resource {
 	}
 }
 
-func expandRoutes(config []interface{}) *[]koyeb.DeploymentRoute {
+func expandRoutes(config []interface{}) []koyeb.DeploymentRoute {
 	routes := make([]koyeb.DeploymentRoute, 0, len(config))
 
 	for _, rawRoute := range config {
@@ -165,7 +165,7 @@ func expandRoutes(config []interface{}) *[]koyeb.DeploymentRoute {
 		routes = append(routes, r)
 	}
 
-	return &routes
+	return routes
 }
 
 func flattenRoutes(routes *[]koyeb.DeploymentRoute) []map[string]interface{} {
@@ -195,7 +195,7 @@ func instanceTypeSchema() *schema.Resource {
 	}
 }
 
-func expandInstanceTypes(config []interface{}) *[]koyeb.DeploymentInstanceType {
+func expandInstanceTypes(config []interface{}) []koyeb.DeploymentInstanceType {
 	instanceTypes := make([]koyeb.DeploymentInstanceType, 0, len(config))
 
 	for _, rawInstanceType := range config {
@@ -208,7 +208,7 @@ func expandInstanceTypes(config []interface{}) *[]koyeb.DeploymentInstanceType {
 		instanceTypes = append(instanceTypes, r)
 	}
 
-	return &instanceTypes
+	return instanceTypes
 }
 
 func flattenInstanceTypes(instanceTypes *[]koyeb.DeploymentInstanceType) []map[string]interface{} {
@@ -244,7 +244,7 @@ func scalingSchema() *schema.Resource {
 	}
 }
 
-func expandScalings(config []interface{}) *[]koyeb.DeploymentScaling {
+func expandScalings(config []interface{}) []koyeb.DeploymentScaling {
 	scalings := make([]koyeb.DeploymentScaling, 0, len(config))
 	diag.Errorf("Error updating secret: %v", config)
 	for _, rawScaling := range config {
@@ -258,7 +258,7 @@ func expandScalings(config []interface{}) *[]koyeb.DeploymentScaling {
 		scalings = append(scalings, r)
 	}
 
-	return &scalings
+	return scalings
 }
 
 func flattenScalings(scalings *[]koyeb.DeploymentScaling) []map[string]interface{} {
@@ -320,7 +320,7 @@ func expandDockerSource(config []interface{}) *koyeb.DockerSource {
 	for i, v := range rawArgs {
 		args[i] = v.(string)
 	}
-	dockerSource.Args = toOpt(args)
+	dockerSource.Args = args
 
 	if rawDockerSource["image_registry_secret"] != nil {
 		dockerSource.ImageRegistrySecret = toOpt(rawDockerSource["image_registry_secret"].(string))
@@ -421,6 +421,9 @@ func deploymentDefinitionSchena() *schema.Resource {
 				ForceNew:     true,
 				Description:  "The service name",
 				ValidateFunc: validation.StringLenBetween(3, 64),
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					return strings.EqualFold(old, new)
+				},
 			},
 			"docker": {
 				Type:     schema.TypeSet,
@@ -480,13 +483,13 @@ func deploymentDefinitionSchena() *schema.Resource {
 	}
 }
 
-func expandRegions(regions []interface{}) *[]string {
+func expandRegions(regions []interface{}) []string {
 	expandedRegions := make([]string, len(regions))
 	for i, v := range regions {
 		expandedRegions[i] = v.(string)
 	}
 
-	return &expandedRegions
+	return expandedRegions
 }
 
 func flattenRegions(regions *[]string) *schema.Set {
@@ -531,12 +534,12 @@ func flattenDeploymentDefinition(deployment *koyeb.DeploymentDefinition) []inter
 	r["name"] = deployment.Name
 	r["docker"] = flattenDocker(deployment.Docker)
 	r["git"] = flattenGit(deployment.Git)
-	r["env"] = flattenEnvs(deployment.Env)
-	r["ports"] = flattenPorts(deployment.Ports)
-	r["routes"] = flattenRoutes(deployment.Routes)
-	r["instance_types"] = flattenInstanceTypes(deployment.InstanceTypes)
-	r["scalings"] = flattenScalings(deployment.Scalings)
-	r["regions"] = flattenRegions(deployment.Regions)
+	r["env"] = flattenEnvs(&deployment.Env)
+	r["ports"] = flattenPorts(&deployment.Ports)
+	r["routes"] = flattenRoutes(&deployment.Routes)
+	r["instance_types"] = flattenInstanceTypes(&deployment.InstanceTypes)
+	r["scalings"] = flattenScalings(&deployment.Scalings)
+	r["regions"] = flattenRegions(&deployment.Regions)
 
 	result = append(result, r)
 
@@ -547,7 +550,7 @@ func deploymentSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
 			"definition": {
-				Type:        schema.TypeSet,
+				Type:        schema.TypeList,
 				MinItems:    1,
 				MaxItems:    1,
 				Required:    true,
@@ -662,7 +665,7 @@ func serviceSchema() map[string]*schema.Schema {
 			Description: "The app id the service is assigned to",
 		},
 		"definition": {
-			Type:        schema.TypeSet,
+			Type:        schema.TypeList,
 			MinItems:    1,
 			MaxItems:    1,
 			Required:    true,
@@ -811,9 +814,9 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 		appId = id
 	}
 
-	definition := expandDeploymentDefinition(d.Get("definition").(*schema.Set).List()[0].(map[string]interface{}))
+	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicesApi.CreateService(context.Background()).Body(koyeb.CreateService{
+	res, resp, err := client.ServicesApi.CreateService(context.Background()).Service(koyeb.CreateService{
 		AppId:      &appId,
 		Definition: definition,
 	}).Execute()
@@ -874,9 +877,9 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	definition := expandDeploymentDefinition(d.Get("definition").(*schema.Set).List()[0].(map[string]interface{}))
+	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicesApi.UpdateService(context.Background(), d.Id()).Body(koyeb.UpdateService{
+	res, resp, err := client.ServicesApi.UpdateService(context.Background(), d.Id()).Service(koyeb.UpdateService{
 		Definition: definition,
 	}).Execute()
 

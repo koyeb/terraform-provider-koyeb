@@ -33,7 +33,7 @@ func testSweepSecret(string) error {
 		return err
 	}
 
-	for _, d := range *res.Secrets {
+	for _, d := range res.Secrets {
 		if strings.HasPrefix(d.GetName(), testNamePrefix) {
 			log.Printf("Destroying secret %s", *d.Name)
 

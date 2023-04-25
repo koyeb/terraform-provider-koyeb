@@ -488,7 +488,7 @@ func resourceKoyebSecretCreate(ctx context.Context, d *schema.ResourceData, meta
 		secret.AzureContainerRegistry = expandAzureContainerRegistry(d.Get("azure_container_registry").(*schema.Set).List())
 	}
 
-	res, resp, err := client.SecretsApi.CreateSecret(ctx).Body(secret).Execute()
+	res, resp, err := client.SecretsApi.CreateSecret(ctx).Secret(secret).Execute()
 	if err != nil {
 		return diag.Errorf("Error creating secret: %s (%v %v)", err, resp, res)
 	}
@@ -555,7 +555,7 @@ func resourceKoyebSecretUpdate(ctx context.Context, d *schema.ResourceData, meta
 		secret.AzureContainerRegistry = expandAzureContainerRegistry(azureContainerRegistry.(*schema.Set).List())
 	}
 
-	res, resp, err := client.SecretsApi.UpdateSecret(context.Background(), d.Id()).Body(secret).Execute()
+	res, resp, err := client.SecretsApi.UpdateSecret(context.Background(), d.Id()).Secret(secret).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error updating secret: %s (%v %v)", err, resp, res)
