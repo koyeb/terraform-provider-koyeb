@@ -77,6 +77,12 @@ resource "koyeb_service" "my-service" {
       path = "/"
       port = 3000
     }
+    health_checks {
+      http {
+        port = 3000
+        path = "/"
+      }
+    }
     regions = ["fra"]
     docker {
       image = "koyeb/demo"

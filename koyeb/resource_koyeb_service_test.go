@@ -179,6 +179,10 @@ resource "koyeb_service" "bar" {
 		  http {
 		    path = "/"
 		    port = 3000
+			headers {
+				key = "X-Header"
+				value = "Value"
+			}
 		  }
 		}
 		regions = ["fra"]

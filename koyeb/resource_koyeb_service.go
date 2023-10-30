@@ -512,7 +512,7 @@ func healthCheckSchema() *schema.Resource {
 	}
 }
 
-func expandHealthChecks(config []interface{}) *[]koyeb.DeploymentHealthCheck {
+func expandHealthChecks(config []interface{}) []koyeb.DeploymentHealthCheck {
 	healthChecks := make([]koyeb.DeploymentHealthCheck, 0, len(config))
 
 	for _, rawHealthCheck := range config {
@@ -538,22 +538,24 @@ func expandHealthChecks(config []interface{}) *[]koyeb.DeploymentHealthCheck {
 		if len(http) > 0 {
 			httpHealthCheck := http[0].(map[string]interface{})
 
-			// headers := make([]koyeb.HTTPHeader, 0, len(config))
+			headers := make([]koyeb.HTTPHeader, 0, len(config))
 
-			// for _, rawHTTPHeader := range config {
-			// 	header := rawHTTPHeader.(map[string]interface{})
+			for _, rawHTTPHeader := range httpHealthCheck["headers"].(*schema.Set).List() {
 
-			// 	h := koyeb.HTTPHeader{
-			// 		Key:   toOpt(header["key"].(string)),
-			// 		Value: toOpt(header["value"].(string)),
-			// 	}
+				header := rawHTTPHeader.(map[string]interface{})
 
-			// 	headers = append(headers, h)
-			// }
+				h := koyeb.HTTPHeader{
+					Key:   toOpt(header["key"].(string)),
+					Value: toOpt(header["value"].(string)),
+				}
+
+				headers = append(headers, h)
+			}
 
 			c.Http = &koyeb.HTTPHealthCheck{
-				Port: toOpt(int64(httpHealthCheck["port"].(int))),
-				Path: toOpt(httpHealthCheck["path"].(string)),
+				Port:    toOpt(int64(httpHealthCheck["port"].(int))),
+				Path:    toOpt(httpHealthCheck["path"].(string)),
+				Headers: headers,
 			}
 
 			if httpHealthCheck["method"] != nil {
@@ -565,7 +567,7 @@ func expandHealthChecks(config []interface{}) *[]koyeb.DeploymentHealthCheck {
 		healthChecks = append(healthChecks, c)
 	}
 
-	return &healthChecks
+	return healthChecks
 }
 
 func deploymentDefinitionSchena() *schema.Resource {

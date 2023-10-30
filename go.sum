@@ -216,8 +216,8 @@ github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 h1:DowS9hvgy
 github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351/go.mod h1:CT57kijsi8u/K/BOFA39wgDQJ9CxiF4nAY/ojJ6r6mM=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
-github.com/koyeb/koyeb-api-client-go v0.0.0-20230403075411-9e4cfaddcb05 h1:AkhOVOcE/GJ6ct5BK1EIuzmhPtpY1ibOxiNfoMakS+I=
-github.com/koyeb/koyeb-api-client-go v0.0.0-20230403075411-9e4cfaddcb05/go.mod h1:+oQfFj2WL3gi9Pb+UHbob4D7xaT52mPfKyH1UvWa4PQ=
+github.com/koyeb/koyeb-api-client-go v0.0.0-20231004123101-b055bd9e4928 h1:xFTTl4MmHRZmrZnoi7BvQVPlMroQo98mdFbZuXsVXiA=
+github.com/koyeb/koyeb-api-client-go v0.0.0-20231004123101-b055bd9e4928/go.mod h1:+oQfFj2WL3gi9Pb+UHbob4D7xaT52mPfKyH1UvWa4PQ=
 github.com/koyeb/koyeb-cli v1.2.1-0.20220624130942-9d3654586774 h1:oX+hdfpMDV19kQ/d75BeMIuAxFguH+gXr1NwaAfkGs8=
 github.com/koyeb/koyeb-cli v1.2.1-0.20220624130942-9d3654586774/go.mod h1:juk43LcEh9iB7h0/7RSc9HjMxZUDmSXxlxjGYEqoFuI=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
