@@ -175,6 +175,16 @@ resource "koyeb_service" "bar" {
 		  path = "/"
 		  port = 3000
 		}
+		health_checks {
+		  http {
+		    path = "/"
+		    port = 3000
+			headers {
+				key = "X-Header"
+				value = "Value"
+			}
+		  }
+		}
 		regions = ["fra"]
 		docker {
 		  image = "koyeb/demo"
@@ -213,6 +223,12 @@ resource "koyeb_service" "bar" {
 		routes {
 		  path = "/"
 		  port = 8080
+		}
+		health_checks {
+		  http {
+			path = "/"
+			port = 8080
+		  }
 		}
 		regions = ["fra"]
 		git {

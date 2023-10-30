@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.1
-	github.com/koyeb/koyeb-api-client-go v0.0.0-20230403075411-9e4cfaddcb05
+	github.com/koyeb/koyeb-api-client-go v0.0.0-20231004123101-b055bd9e4928
 	github.com/koyeb/koyeb-cli v1.2.1-0.20220624130942-9d3654586774
 )
 

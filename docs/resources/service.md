@@ -96,6 +96,7 @@ Optional:
 - `docker` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--docker))
 - `env` (Block Set) (see [below for nested schema](#nestedblock--definition--env))
 - `git` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git))
+- `health_checks` (Block Set) (see [below for nested schema](#nestedblock--definition--health_checks))
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
 
 <a id="nestedblock--definition--instance_types"></a>
@@ -164,6 +165,53 @@ Optional:
 - `build_command` (String) The command to build your application during the build phase. If your application does not require a build command, leave this field empty
 - `no_deploy_on_push` (Boolean) If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch
 - `run_command` (String) The command to run your application once the built is completed
+
+
+<a id="nestedblock--definition--health_checks"></a>
+### Nested Schema for `definition.health_checks`
+
+Optional:
+
+- `grace_period` (Number) The period in seconds to wait for the instance to become healthy, default is 5s
+- `http` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--health_checks--http))
+- `interval` (Number) The period in seconds between two health checks, default is 60s
+- `restart_limit` (Number) The number of consecutive failures before attempting to restart the service, default is 3
+- `tcp` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--health_checks--tcp))
+- `timeout` (Number) The maximum time to wait in seconds before considering the check as a failure, default is 5s
+
+<a id="nestedblock--definition--health_checks--http"></a>
+### Nested Schema for `definition.health_checks.http`
+
+Required:
+
+- `path` (String) The path to use to perform the HTTP health check
+- `port` (Number) The port to use to perform the health check
+
+Optional:
+
+- `headers` (Block Set) (see [below for nested schema](#nestedblock--definition--health_checks--http--headers))
+- `method` (String) An optional HTTP method to use to perform the health check, default is GET
+
+<a id="nestedblock--definition--health_checks--http--headers"></a>
+### Nested Schema for `definition.health_checks.http.headers`
+
+Required:
+
+- `key` (String) The name of the header
+
+Optional:
+
+- `value` (String) The value of the header
+
+
+
+<a id="nestedblock--definition--health_checks--tcp"></a>
+### Nested Schema for `definition.health_checks.tcp`
+
+Required:
+
+- `port` (Number) The port to use to perform the health check
+
 
 
 <a id="nestedblock--definition--routes"></a>
