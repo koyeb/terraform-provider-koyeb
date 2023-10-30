@@ -98,6 +98,8 @@ Optional:
 - `git` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git))
 - `health_checks` (Block Set) (see [below for nested schema](#nestedblock--definition--health_checks))
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
+- `skip_cache` (Boolean) If set to true, the service will be deployed without using the cache
+- `type` (String) The service type, either WEB or WORKER (default WEB)
 
 <a id="nestedblock--definition--instance_types"></a>
 ### Nested Schema for `definition.instance_types`
@@ -162,9 +164,32 @@ Required:
 
 Optional:
 
-- `build_command` (String) The command to build your application during the build phase. If your application does not require a build command, leave this field empty
+- `buildpack` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git--buildpack))
+- `dockerfile` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git--dockerfile))
 - `no_deploy_on_push` (Boolean) If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch
+
+<a id="nestedblock--definition--git--buildpack"></a>
+### Nested Schema for `definition.git.buildpack`
+
+Optional:
+
+- `build_command` (String) The command to build your application during the build phase. If your application does not require a build command, leave this field empty
+- `privileged` (Boolean) When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.
 - `run_command` (String) The command to run your application once the built is completed
+
+
+<a id="nestedblock--definition--git--dockerfile"></a>
+### Nested Schema for `definition.git.dockerfile`
+
+Optional:
+
+- `args` (List of String) The arguments to pass to the Docker command
+- `command` (String) Override the command to execute on the container
+- `dockerfile` (String) The location of your Dockerfile relative to the work directory. If not set, the work directory defaults to the root of the repository.
+- `entrypoint` (List of String) Override the default entrypoint to execute on the container
+- `privileged` (Boolean) When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.
+- `target` (String) Target build stage: If your Dockerfile contains multi-stage builds, you can choose the target stage to build and deploy by entering its name
+
 
 
 <a id="nestedblock--definition--health_checks"></a>
