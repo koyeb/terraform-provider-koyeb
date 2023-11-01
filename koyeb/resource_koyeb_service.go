@@ -343,6 +343,154 @@ func flattenDocker(dockerSource *koyeb.DockerSource) []interface{} {
 	return result
 }
 
+func dockerBuilderSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"dockerfile": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The location of your Dockerfile relative to the work directory. If not set, the work directory defaults to the root of the repository.",
+			},
+			"entrypoint": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "Override the default entrypoint to execute on the container",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Override the command to execute on the container",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"args": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The arguments to pass to the Docker command",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"target": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Target build stage: If your Dockerfile contains multi-stage builds, you can choose the target stage to build and deploy by entering its name",
+			},
+			"privileged": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
+			},
+		},
+	}
+}
+
+func expandDockerBuilder(config []interface{}) *koyeb.DockerBuilder {
+	rawDockerBuilderSource := config[0].(map[string]interface{})
+
+	dockerBuilderSource := &koyeb.DockerBuilder{}
+
+	if rawDockerBuilderSource["dockerfile"] != nil {
+		dockerBuilderSource.Dockerfile = toOpt(rawDockerBuilderSource["dockerfile"].(string))
+	}
+
+	rawEntrypoint := rawDockerBuilderSource["entrypoint"].([]interface{})
+	entrypoint := make([]string, len(rawEntrypoint))
+	for i, v := range rawEntrypoint {
+		entrypoint[i] = v.(string)
+	}
+	dockerBuilderSource.Entrypoint = entrypoint
+
+	if rawDockerBuilderSource["command"] != nil {
+		dockerBuilderSource.Command = toOpt(rawDockerBuilderSource["command"].(string))
+	}
+
+	rawArgs := rawDockerBuilderSource["args"].([]interface{})
+	args := make([]string, len(rawArgs))
+	for i, v := range rawArgs {
+		args[i] = v.(string)
+	}
+	dockerBuilderSource.Args = args
+
+	if rawDockerBuilderSource["target"] != nil {
+		dockerBuilderSource.Target = toOpt(rawDockerBuilderSource["target"].(string))
+	}
+
+	if rawDockerBuilderSource["privileged"] != nil {
+		dockerBuilderSource.Privileged = toOpt(rawDockerBuilderSource["privileged"].(bool))
+	}
+
+	return dockerBuilderSource
+}
+
+func flattenDockerBuilder(dockerBuilderSource *koyeb.DockerBuilder) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["entrypoint"] = dockerBuilderSource.Entrypoint
+	r["command"] = dockerBuilderSource.Command
+	r["args"] = dockerBuilderSource.Args
+	r["target"] = dockerBuilderSource.Target
+	r["privileged"] = dockerBuilderSource.Privileged
+
+	result = append(result, r)
+
+	return result
+}
+
+func buildpackBuilderSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"build_command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The command to build your application during the build phase. If your application does not require a build command, leave this field empty",
+			},
+			"run_command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The command to run your application once the built is completed",
+			},
+			"privileged": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
+			},
+		},
+	}
+}
+
+func expandBuildpackBuilder(config []interface{}) *koyeb.BuildpackBuilder {
+	rawBuildpackBuilderSource := config[0].(map[string]interface{})
+
+	buildpackBuilderSource := &koyeb.BuildpackBuilder{}
+
+	if rawBuildpackBuilderSource["build_command"] != nil {
+		buildpackBuilderSource.BuildCommand = toOpt(rawBuildpackBuilderSource["build_command"].(string))
+	}
+
+	if rawBuildpackBuilderSource["run_command"] != nil {
+		buildpackBuilderSource.RunCommand = toOpt(rawBuildpackBuilderSource["run_command"].(string))
+	}
+
+	if rawBuildpackBuilderSource["privileged"] != nil {
+		buildpackBuilderSource.Privileged = toOpt(rawBuildpackBuilderSource["privileged"].(bool))
+	}
+
+	return buildpackBuilderSource
+}
+
+func flattenBuildpackBuilder(buildpackBuilderSource *koyeb.BuildpackBuilder) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["build_command"] = buildpackBuilderSource.BuildCommand
+	r["run_command"] = buildpackBuilderSource.RunCommand
+	r["privileged"] = buildpackBuilderSource.Privileged
+
+	result = append(result, r)
+
+	return result
+}
+
 func gitSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
@@ -356,15 +504,19 @@ func gitSchema() *schema.Resource {
 				Required:    true,
 				Description: "The GitHub branch to deploy",
 			},
-			"build_command": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The command to build your application during the build phase. If your application does not require a build command, leave this field empty",
+			"buildpack": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     buildpackBuilderSchema(),
+				Set:      schema.HashResource(buildpackBuilderSchema()),
+				MaxItems: 1,
 			},
-			"run_command": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The command to run your application once the built is completed",
+			"dockerfile": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     dockerBuilderSchema(),
+				Set:      schema.HashResource(dockerBuilderSchema()),
+				MaxItems: 1,
 			},
 			"no_deploy_on_push": {
 				Type:        schema.TypeBool,
@@ -381,18 +533,16 @@ func expandGitSource(config []interface{}) *koyeb.GitSource {
 	gitSource := &koyeb.GitSource{
 		Repository:     toOpt(rawGitSource["repository"].(string)),
 		Branch:         toOpt(rawGitSource["branch"].(string)),
-		BuildCommand:   toOpt(rawGitSource["build_command"].(string)),
-		RunCommand:     toOpt(rawGitSource["run_command"].(string)),
 		NoDeployOnPush: toOpt(rawGitSource["no_deploy_on_push"].(bool)),
 	}
 
-	// if rawGitSource["build_command"] != nil {
-	// 	gitSource.BuildCommand = toOpt(rawGitSource["build_command"].(string))
-	// }
-
-	// if rawGitSource["run_command"] != nil {
-	// 	gitSource.RunCommand = toOpt(rawGitSource["run_command"].(string))
-	// }
+	if rawGitSource["dockerfile"] != nil && rawGitSource["dockerfile"].(*schema.Set).Len() > 0 {
+		gitSource.Docker = expandDockerBuilder(rawGitSource["dockerfile"].(*schema.Set).List())
+	} else if rawGitSource["buildpack"] != nil && rawGitSource["buildpack"].(*schema.Set).Len() > 0 {
+		gitSource.Buildpack = expandBuildpackBuilder(rawGitSource["buildpack"].(*schema.Set).List())
+	} else {
+		gitSource.Buildpack = expandBuildpackBuilder([]interface{}{map[string]interface{}{}})
+	}
 
 	return gitSource
 }
@@ -403,9 +553,9 @@ func flattenGit(gitSource *koyeb.GitSource) []interface{} {
 	r := make(map[string]interface{})
 	r["repository"] = gitSource.Repository
 	r["branch"] = gitSource.Branch
-	r["build_command"] = gitSource.BuildCommand
-	r["run_command"] = gitSource.RunCommand
 	r["no_deploy_on_push"] = gitSource.NoDeployOnPush
+	r["buildpack"] = flattenBuildpackBuilder(gitSource.Buildpack)
+	r["dockerfile"] = flattenDockerBuilder(gitSource.Docker)
 
 	result = append(result, r)
 
@@ -583,6 +733,13 @@ func deploymentDefinitionSchena() *schema.Resource {
 					return strings.EqualFold(old, new)
 				},
 			},
+			"type": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "WEB",
+				Description:  "The service type, either WEB or WORKER (default WEB)",
+				ValidateFunc: validation.StringInSlice([]string{"WEB", "WORKER"}, false),
+			},
 			"docker": {
 				Type:     schema.TypeSet,
 				Optional: true,
@@ -608,6 +765,11 @@ func deploymentDefinitionSchena() *schema.Resource {
 				Required: true,
 				Elem:     portSchema(),
 				Set:      schema.HashResource(portSchema()),
+			},
+			"skip_cache": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "If set to true, the service will be deployed without using the cache",
 			},
 			"health_checks": {
 				Type:     schema.TypeSet,
