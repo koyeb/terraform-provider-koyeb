@@ -168,6 +168,7 @@ Optional:
 - `buildpack` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git--buildpack))
 - `dockerfile` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git--dockerfile))
 - `no_deploy_on_push` (Boolean) If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch
+- `workdir` (String) The directory where your source code is located. If not set, the work directory defaults to the root of the repository.
 
 <a id="nestedblock--definition--git--buildpack"></a>
 ### Nested Schema for `definition.git.buildpack`

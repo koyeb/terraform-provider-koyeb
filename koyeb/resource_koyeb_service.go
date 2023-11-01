@@ -517,6 +517,11 @@ func gitSchema() *schema.Resource {
 				Required:    true,
 				Description: "The GitHub branch to deploy",
 			},
+			"workdir": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The directory where your source code is located. If not set, the work directory defaults to the root of the repository.",
+			},
 			"buildpack": {
 				Type:     schema.TypeSet,
 				Optional: true,
@@ -546,6 +551,7 @@ func expandGitSource(config []interface{}) *koyeb.GitSource {
 	gitSource := &koyeb.GitSource{
 		Repository:     toOpt(rawGitSource["repository"].(string)),
 		Branch:         toOpt(rawGitSource["branch"].(string)),
+		Workdir:        toOpt(rawGitSource["workdir"].(string)),
 		NoDeployOnPush: toOpt(rawGitSource["no_deploy_on_push"].(bool)),
 	}
 
@@ -566,6 +572,7 @@ func flattenGit(gitSource *koyeb.GitSource) []interface{} {
 	r := make(map[string]interface{})
 	r["repository"] = gitSource.Repository
 	r["branch"] = gitSource.Branch
+	r["workdir"] = gitSource.Workdir
 	r["no_deploy_on_push"] = gitSource.NoDeployOnPush
 	r["buildpack"] = flattenBuildpackBuilder(gitSource.Buildpack)
 	r["dockerfile"] = flattenDockerBuilder(gitSource.Docker)
