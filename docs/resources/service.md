@@ -150,6 +150,7 @@ Required:
 
 Optional:
 
+- `scope` (List of String) The regions the environment variable needs to be exposed
 - `secret` (String, Sensitive) The secret name to use as the value of the environment variable
 - `value` (String) The value of the environment variable
 
