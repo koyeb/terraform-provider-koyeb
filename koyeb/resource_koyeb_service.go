@@ -15,6 +15,12 @@ import (
 func envSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
+			"scope": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The regions the environment variable needs to be exposed",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
 			"key": {
 				Type:        schema.TypeString,
 				Required:    true,
@@ -44,6 +50,13 @@ func expandEnvs(config []interface{}) []koyeb.DeploymentEnv {
 		e := koyeb.DeploymentEnv{
 			Key: toOpt(env["key"].(string)),
 		}
+
+		rawScope := env["scope"].([]interface{})
+		scope := make([]string, len(rawScope))
+		for i, v := range rawScope {
+			scope[i] = v.(string)
+		}
+		e.Scopes = scope
 
 		if env["value"] != nil && env["value"].(string) != "" {
 			e.Value = toOpt(env["value"].(string))
