@@ -85,11 +85,11 @@ resource "koyeb_service" "my-service" {
 
 Required:
 
-- `instance_types` (Block Set, Min: 1, Max: 1) (see [below for nested schema](#nestedblock--definition--instance_types))
+- `instance_types` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--definition--instance_types))
 - `name` (String) The service name
 - `ports` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--definition--ports))
 - `regions` (Set of String) The service deployment regions to deploy to
-- `scalings` (Block Set, Min: 1, Max: 1) (see [below for nested schema](#nestedblock--definition--scalings))
+- `scalings` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--definition--scalings))
 
 Optional:
 
@@ -108,6 +108,10 @@ Required:
 
 - `type` (String) The instance type to use to support your service
 
+Optional:
+
+- `scope` (List of String) The regions to use the instance type
+
 
 <a id="nestedblock--definition--ports"></a>
 ### Nested Schema for `definition.ports`
@@ -125,6 +129,42 @@ Optional:
 
 - `max` (Number) The maximum number of instance to use to support your service
 - `min` (Number) The minimal number of instances to use to support your service
+- `scope` (List of String) The regions to apply the scaling configuration
+- `targets` (Block Set) (see [below for nested schema](#nestedblock--definition--scalings--targets))
+
+<a id="nestedblock--definition--scalings--targets"></a>
+### Nested Schema for `definition.scalings.targets`
+
+Optional:
+
+- `average_cpu` (Block Set) The CPU usage (expressed as a percentage) across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--average_cpu))
+- `average_mem` (Block Set) The memory usage (expressed as a percentage) across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--average_mem))
+- `requests_per_second` (Block Set) The number of concurrent requests per second across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--requests_per_second))
+
+<a id="nestedblock--definition--scalings--targets--average_cpu"></a>
+### Nested Schema for `definition.scalings.targets.average_cpu`
+
+Required:
+
+- `value` (Number) The target value of the autoscaling target
+
+
+<a id="nestedblock--definition--scalings--targets--average_mem"></a>
+### Nested Schema for `definition.scalings.targets.average_mem`
+
+Required:
+
+- `value` (Number) The target value of the autoscaling target
+
+
+<a id="nestedblock--definition--scalings--targets--requests_per_second"></a>
+### Nested Schema for `definition.scalings.targets.requests_per_second`
+
+Required:
+
+- `value` (Number) The target value of the autoscaling target
+
+
 
 
 <a id="nestedblock--definition--docker"></a>
