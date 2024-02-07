@@ -199,6 +199,12 @@ func flattenRoutes(routes *[]koyeb.DeploymentRoute) []map[string]interface{} {
 func instanceTypeSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
+			"scope": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The regions to use the instance type",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
 			"type": {
 				Type:        schema.TypeString,
 				Required:    true,
@@ -217,6 +223,13 @@ func expandInstanceTypes(config []interface{}) []koyeb.DeploymentInstanceType {
 		r := koyeb.DeploymentInstanceType{
 			Type: toOpt(instanceType["type"].(string)),
 		}
+
+		rawScope := instanceType["scope"].([]interface{})
+		scope := make([]string, len(rawScope))
+		for i, v := range rawScope {
+			scope[i] = v.(string)
+		}
+		r.Scopes = scope
 
 		instanceTypes = append(instanceTypes, r)
 	}
@@ -238,9 +251,55 @@ func flattenInstanceTypes(instanceTypes *[]koyeb.DeploymentInstanceType) []map[s
 	return result
 }
 
+func autoScalingTargetValueSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"value": {
+				Type:        schema.TypeInt,
+				Required:    true,
+				Description: "The target value of the autoscaling target",
+			},
+		},
+	}
+}
+
+func autoScalingTargetSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"average_cpu": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The CPU usage (expressed as a percentage) across all Instances of your Service within a region",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
+			"average_mem": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The memory usage (expressed as a percentage) across all Instances of your Service within a region",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
+			"requests_per_second": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The number of concurrent requests per second across all Instances of your Service within a region",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
+		},
+	}
+}
+
 func scalingSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
+			"scope": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The regions to apply the scaling configuration",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
 			"min": {
 				Type:        schema.TypeInt,
 				Optional:    true,
@@ -253,40 +312,79 @@ func scalingSchema() *schema.Resource {
 				Default:     1,
 				Description: "The maximum number of instance to use to support your service",
 			},
+			"targets": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     autoScalingTargetSchema(),
+				Set:      schema.HashResource(autoScalingTargetSchema()),
+			},
 		},
 	}
 }
 
 func expandScalings(config []interface{}) []koyeb.DeploymentScaling {
 	scalings := make([]koyeb.DeploymentScaling, 0, len(config))
-	diag.Errorf("Error updating secret: %v", config)
-	for _, rawScaling := range config {
-		scaling := rawScaling.(map[string]interface{})
 
-		r := koyeb.DeploymentScaling{
+	for _, rawScalings := range config {
+		scaling := rawScalings.(map[string]interface{})
+
+		s := koyeb.DeploymentScaling{
 			Max: toOpt(int64(scaling["max"].(int))),
 			Min: toOpt(int64(scaling["min"].(int))),
 		}
 
-		scalings = append(scalings, r)
+		rawScope := scaling["scope"].([]interface{})
+		scope := make([]string, len(rawScope))
+		for i, v := range rawScope {
+			scope[i] = v.(string)
+		}
+		s.Scopes = scope
+
+		targets := scaling["targets"].(*schema.Set).List()
+		for _, rawTarget := range targets {
+			target := rawTarget.(map[string]interface{})
+
+			if target["average_cpu"] != nil {
+				cpu := target["average_cpu"].(*schema.Set).List()
+				for _, rawCPU := range cpu {
+					cpu := rawCPU.(map[string]interface{})
+					s.Targets = append(s.Targets, koyeb.DeploymentScalingTarget{
+						AverageCpu: &koyeb.DeploymentScalingTargetAverageCPU{
+							Value: toOpt(int64(cpu["value"].(int))),
+						},
+					})
+				}
+			}
+			if target["average_mem"] != nil {
+				mem := target["average_mem"].(*schema.Set).List()
+				for _, rawMem := range mem {
+					mem := rawMem.(map[string]interface{})
+					s.Targets = append(s.Targets, koyeb.DeploymentScalingTarget{
+						AverageMem: &koyeb.DeploymentScalingTargetAverageMem{
+							Value: toOpt(int64(mem["value"].(int))),
+						},
+					})
+				}
+			}
+
+			if target["requests_per_second"] != nil {
+				rps := target["requests_per_second"].(*schema.Set).List()
+				for _, rawRPS := range rps {
+					rps := rawRPS.(map[string]interface{})
+					s.Targets = append(s.Targets, koyeb.DeploymentScalingTarget{
+						RequestsPerSecond: &koyeb.DeploymentScalingTargetRequestsPerSecond{
+							Value: toOpt(int64(rps["value"].(int))),
+						},
+					})
+				}
+			}
+
+		}
+
+		scalings = append(scalings, s)
 	}
 
 	return scalings
-}
-
-func flattenScalings(scalings *[]koyeb.DeploymentScaling) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(*scalings))
-
-	for i, scaling := range *scalings {
-		r := make(map[string]interface{})
-
-		r["max"] = *scaling.Max
-		r["min"] = *scaling.Min
-
-		result[i] = r
-	}
-
-	return result
 }
 
 func dockerSchema() *schema.Resource {
@@ -807,7 +905,6 @@ func deploymentDefinitionSchena() *schema.Resource {
 				Type:     schema.TypeSet,
 				Required: true,
 				MinItems: 1,
-				MaxItems: 1,
 				Elem:     instanceTypeSchema(),
 				Set:      schema.HashResource(instanceTypeSchema()),
 			},
@@ -815,7 +912,6 @@ func deploymentDefinitionSchena() *schema.Resource {
 				Type:     schema.TypeSet,
 				Required: true,
 				MinItems: 1,
-				MaxItems: 1,
 				Elem:     scalingSchema(),
 				Set:      schema.HashResource(scalingSchema()),
 			},
@@ -885,7 +981,7 @@ func flattenDeploymentDefinition(deployment *koyeb.DeploymentDefinition) []inter
 	r["ports"] = flattenPorts(&deployment.Ports)
 	r["routes"] = flattenRoutes(&deployment.Routes)
 	r["instance_types"] = flattenInstanceTypes(&deployment.InstanceTypes)
-	r["scalings"] = flattenScalings(&deployment.Scalings)
+	// r["scalings"] = flattenScalings(&deployment.Scalings)
 	r["regions"] = flattenRegions(&deployment.Regions)
 
 	result = append(result, r)
