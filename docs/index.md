@@ -31,28 +31,28 @@ resource "koyeb_app" "my-app" {
   name = var.app_name
 }
 
-resource "koyeb_domain" "my-domain" {
-  name     = var.domain_name
-  app_name = var.app_name
+# resource "koyeb_domain" "my-domain" {
+#   name     = var.domain_name
+#   app_name = var.app_name
 
-  depends_on = [
-    koyeb_app.my-app
-  ]
-}
+#   depends_on = [
+#     koyeb_app.my-app
+#   ]
+# }
 
-resource "koyeb_secret" "simple" {
-  name  = var.secret_simple_name
-  value = var.secret_simple_value
-}
+# resource "koyeb_secret" "simple" {
+#   name  = var.secret_simple_name
+#   value = var.secret_simple_value
+# }
 
-resource "koyeb_secret" "secret_dockerhub_registry_configuration" {
-  name = var.secret_dockerhub_registry_configuration_name
-  type = "REGISTRY"
-  docker_hub_registry {
-    username = var.secret_dockerhub_registry_configuration_username
-    password = var.secret_dockerhub_registry_configuration_token
-  }
-}
+# resource "koyeb_secret" "secret_dockerhub_registry_configuration" {
+#   name = var.secret_dockerhub_registry_configuration_name
+#   type = "REGISTRY"
+#   docker_hub_registry {
+#     username = var.secret_dockerhub_registry_configuration_username
+#     password = var.secret_dockerhub_registry_configuration_token
+#   }
+# }
 
 resource "koyeb_service" "my-service" {
   app_name = var.app_name
@@ -85,7 +85,12 @@ resource "koyeb_service" "my-service" {
     }
     regions = ["fra"]
     docker {
-      image = "koyeb/demo"
+      image      = "koyeb/demo"
+      entrypoint = ["/app", "yo"]
+      args       = ["--port", "3000"]
+      command    = "yolo"
+      privileged = false
+
     }
   }
 
