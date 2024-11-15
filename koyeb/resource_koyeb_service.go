@@ -406,6 +406,17 @@ func dockerSchema() *schema.Resource {
 				Description: "The Docker args to use",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
+			"entrypoint": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The Docker entrypoint to use",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"privileged": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
+			},
 			"image_registry_secret": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -433,6 +444,17 @@ func expandDockerSource(config []interface{}) *koyeb.DockerSource {
 	}
 	dockerSource.Args = args
 
+	rawEntrypoint := rawDockerSource["entrypoint"].([]interface{})
+	entrypoint := make([]string, len(rawEntrypoint))
+	for i, v := range rawEntrypoint {
+		entrypoint[i] = v.(string)
+	}
+	dockerSource.Entrypoint = entrypoint
+
+	if rawDockerSource["privileged"] != nil {
+		dockerSource.Privileged = toOpt(rawDockerSource["privileged"].(bool))
+	}
+
 	if rawDockerSource["image_registry_secret"] != nil {
 		dockerSource.ImageRegistrySecret = toOpt(rawDockerSource["image_registry_secret"].(string))
 	}
@@ -447,6 +469,8 @@ func flattenDocker(dockerSource *koyeb.DockerSource) []interface{} {
 	r["image"] = dockerSource.Image
 	r["command"] = dockerSource.Command
 	r["args"] = dockerSource.Args
+	r["entrypoint"] = dockerSource.Entrypoint
+	r["privileged"] = dockerSource.Privileged
 	r["image_registry_secret"] = dockerSource.ImageRegistrySecret
 
 	result = append(result, r)

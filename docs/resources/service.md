@@ -178,7 +178,9 @@ Optional:
 
 - `args` (List of String) The Docker args to use
 - `command` (String) The Docker command to use
+- `entrypoint` (List of String) The Docker entrypoint to use
 - `image_registry_secret` (String) The Koyeb secret containing the container registry credentials
+- `privileged` (Boolean) When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.
 
 
 <a id="nestedblock--definition--env"></a>
