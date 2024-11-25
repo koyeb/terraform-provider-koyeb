@@ -100,6 +100,7 @@ Optional:
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
 - `skip_cache` (Boolean) If set to true, the service will be deployed without using the cache
 - `type` (String) The service type, either WEB or WORKER (default WEB)
+- `volumes` (Block Set) The volumes to attach and mount to the service (see [below for nested schema](#nestedblock--definition--volumes))
 
 <a id="nestedblock--definition--instance_types"></a>
 ### Nested Schema for `definition.instance_types`
@@ -290,5 +291,19 @@ Required:
 
 - `path` (String) Path specifies a route by HTTP path prefix. Paths must start with / and must be unique within the app
 - `port` (Number) The internal port on which this service's run command will listen
+
+
+<a id="nestedblock--definition--volumes"></a>
+### Nested Schema for `definition.volumes`
+
+Required:
+
+- `id` (String) The volume ID to mount to the service
+- `path` (String) The path where to mount the volume
+
+Optional:
+
+- `replica_index` (Number) Explicitly specify the replica index to mount the volume to
+- `scope` (List of String) The regions to apply the scaling configuration
 
 
