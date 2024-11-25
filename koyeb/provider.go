@@ -40,6 +40,7 @@ func New(version string) func() *schema.Provider {
 				"koyeb_service": resourceKoyebService(),
 				"koyeb_domain":  resourceKoyebDomain(),
 				"koyeb_secret":  resourceKoyebSecret(),
+				"koyeb_volume":  resourceKoyebVolume(),
 			},
 		}
 

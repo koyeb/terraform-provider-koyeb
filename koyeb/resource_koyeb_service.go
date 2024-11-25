@@ -862,6 +862,59 @@ func expandHealthChecks(config []interface{}) []koyeb.DeploymentHealthCheck {
 	return healthChecks
 }
 
+func serviceVolumeSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"scope": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The regions to apply the scaling configuration",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"id": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The volume ID to mount to the service",
+			},
+			"path": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The path where to mount the volume",
+			},
+			"replica_index": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Description: "Explicitly specify the replica index to mount the volume to",
+			},
+		},
+	}
+}
+
+func expandVolumes(config []interface{}) []koyeb.DeploymentVolume {
+	volumes := make([]koyeb.DeploymentVolume, 0, len(config))
+
+	for _, rawVolume := range config {
+		volume := rawVolume.(map[string]interface{})
+
+		v := koyeb.DeploymentVolume{
+			Id:           toOpt(volume["id"].(string)),
+			Path:         toOpt(volume["path"].(string)),
+			ReplicaIndex: toOpt(int64(volume["replica_index"].(int))),
+		}
+
+		rawScope := volume["scope"].([]interface{})
+		scope := make([]string, len(rawScope))
+		for i, v := range rawScope {
+			scope[i] = v.(string)
+		}
+		v.Scopes = scope
+
+		volumes = append(volumes, v)
+	}
+
+	return volumes
+}
+
 func deploymentDefinitionSchena() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
@@ -945,6 +998,13 @@ func deploymentDefinitionSchena() *schema.Resource {
 				Description: "The service deployment regions to deploy to",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
+			"volumes": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The volumes to attach and mount to the service",
+				Elem:        serviceVolumeSchema(),
+				Set:         schema.HashResource(serviceVolumeSchema()),
+			},
 		},
 	}
 }
@@ -979,6 +1039,7 @@ func expandDeploymentDefinition(configmap map[string]interface{}) *koyeb.Deploym
 		InstanceTypes: expandInstanceTypes(rawDeploymentDefinition["instance_types"].(*schema.Set).List()),
 		Regions:       expandRegions(rawDeploymentDefinition["regions"].(*schema.Set).List()),
 		HealthChecks:  expandHealthChecks(rawDeploymentDefinition["health_checks"].(*schema.Set).List()),
+		Volumes:       expandVolumes(rawDeploymentDefinition["volumes"].(*schema.Set).List()),
 	}
 
 	git := rawDeploymentDefinition["git"].(*schema.Set).List()
