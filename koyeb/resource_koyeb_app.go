@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
+	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func appSchema() map[string]*schema.Schema {
@@ -54,12 +55,15 @@ func appSchema() map[string]*schema.Schema {
 
 func resourceKoyebApp() *schema.Resource {
 	return &schema.Resource{
-		// This description is used by the documentation generator and the language server.
 		Description: "App resource in the Koyeb Terraform provider.",
 
 		CreateContext: resourceKoyebAppCreate,
 		ReadContext:   resourceKoyebAppRead,
 		DeleteContext: resourceKoyebAppDelete,
+
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
 
 		Schema: appSchema(),
 	}
@@ -69,9 +73,9 @@ func setAppAttribute(d *schema.ResourceData, app koyeb.App) error {
 	d.SetId(app.GetId())
 	d.Set("name", app.GetName())
 	d.Set("organization_id", app.GetOrganizationId())
-	d.Set("created_at", app.GetCreatedAt().UTC().String())
-	d.Set("updated_at", app.GetUpdatedAt().UTC().String())
 	d.Set("domains", flattenDomains(&app.Domains, app.GetName()))
+	d.Set("updated_at", app.GetUpdatedAt().UTC().String())
+	d.Set("created_at", app.GetCreatedAt().UTC().String())
 
 	return nil
 }
@@ -82,21 +86,34 @@ func resourceKoyebAppCreate(ctx context.Context, d *schema.ResourceData, meta in
 	res, resp, err := client.AppsApi.CreateApp(context.Background()).App(koyeb.CreateApp{
 		Name: toOpt(d.Get("name").(string)),
 	}).Execute()
+
 	if err != nil {
 		return diag.Errorf("Error creating app: %s (%v %v)", err, resp, res)
 	}
 
+	d.SetId(*res.App.Id)
 	log.Printf("[INFO] Created app name: %s", *res.App.Name)
-
-	setAppAttribute(d, *res.App)
 
 	return resourceKoyebAppRead(ctx, d, meta)
 }
 
 func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
+	mapper := idmapper.NewMapper(context.Background(), client)
+	appMapper := mapper.App()
+	var appId string
 
-	res, resp, err := client.AppsApi.GetApp(context.Background(), d.Id()).Execute()
+	if d.Id() != "" {
+		id, err := appMapper.ResolveID(d.Id())
+
+		if err != nil {
+			return diag.Errorf("Error retrieving app: %s", err)
+		}
+
+		appId = id
+	}
+
+	res, resp, err := client.AppsApi.GetApp(context.Background(), appId).Execute()
 	if err != nil {
 		// If the app is somehow already destroyed, mark as
 		// successfully gone
