@@ -80,6 +80,78 @@ func TestAccKoyebSecret_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "type"),
 				),
 			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebSecretConfig_docker_hub_registry, secretName, secretValue, secretValue),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebSecretExists("koyeb_secret.foo", &secret),
+					testAccCheckKoyebSecretAttributes(&secret, secretName),
+					resource.TestCheckResourceAttr(
+						"koyeb_secret.foo", "name", secretName),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "type"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebSecretConfig_github_registry, secretName, secretValue, secretValue),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebSecretExists("koyeb_secret.foo", &secret),
+					testAccCheckKoyebSecretAttributes(&secret, secretName),
+					resource.TestCheckResourceAttr(
+						"koyeb_secret.foo", "name", secretName),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "type"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebSecretConfig_gitlab_registry, secretName, secretValue, secretValue),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebSecretExists("koyeb_secret.foo", &secret),
+					testAccCheckKoyebSecretAttributes(&secret, secretName),
+					resource.TestCheckResourceAttr(
+						"koyeb_secret.foo", "name", secretName),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "type"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebSecretConfig_digital_ocean_container_registry, secretName, secretValue, secretValue),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebSecretExists("koyeb_secret.foo", &secret),
+					testAccCheckKoyebSecretAttributes(&secret, secretName),
+					resource.TestCheckResourceAttr(
+						"koyeb_secret.foo", "name", secretName),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "type"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebSecretConfig_private_registry, secretName, secretValue, secretValue, secretValue),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebSecretExists("koyeb_secret.foo", &secret),
+					testAccCheckKoyebSecretAttributes(&secret, secretName),
+					resource.TestCheckResourceAttr(
+						"koyeb_secret.foo", "name", secretName),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "type"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebSecretConfig_azure_container_registry, secretName, secretValue, secretValue),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebSecretExists("koyeb_secret.foo", &secret),
+					testAccCheckKoyebSecretAttributes(&secret, secretName),
+					resource.TestCheckResourceAttr(
+						"koyeb_secret.foo", "name", secretName),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_secret.foo", "type"),
+				),
+			},
 		},
 	})
 }
@@ -154,5 +226,67 @@ resource "koyeb_secret" "foo" {
 	docker_hub_registry {
 		username = "%s"
 		password = "%s"
+	}
+}`
+
+const testAccCheckKoyebSecretConfig_docker_hub_registry = `
+resource "koyeb_secret" "foo" {
+	name  = "%s"
+	type  = "REGISTRY"
+	docker_hub_registry {
+		username = "%s"
+		password = "%s"
+	}
+}`
+
+const testAccCheckKoyebSecretConfig_github_registry = `
+resource "koyeb_secret" "foo" {
+	name  = "%s"
+	type  = "REGISTRY"
+	github_registry {
+		username = "%s"
+		password = "%s"
+	}
+}`
+
+const testAccCheckKoyebSecretConfig_gitlab_registry = `
+resource "koyeb_secret" "foo" {
+	name  = "%s"
+	type  = "REGISTRY"
+	gitlab_registry {
+		username = "%s"
+		password = "%s"
+	}
+}`
+
+const testAccCheckKoyebSecretConfig_digital_ocean_container_registry = `
+resource "koyeb_secret" "foo" {
+	name  = "%s"
+	type  = "REGISTRY"
+	digital_ocean_container_registry {
+		username = "%s"
+		password = "%s"
+	}
+}`
+
+const testAccCheckKoyebSecretConfig_private_registry = `
+resource "koyeb_secret" "foo" {
+	name  = "%s"
+	type  = "REGISTRY"
+	private_registry {
+		username = "%s"
+		password = "%s"
+		url = "%s"
+	}
+}`
+
+const testAccCheckKoyebSecretConfig_azure_container_registry = `
+resource "koyeb_secret" "foo" {
+	name  = "%s"
+	type  = "REGISTRY"
+	azure_container_registry {
+		username = "%s"
+		password = "%s"
+		registry_name = "test01"
 	}
 }`

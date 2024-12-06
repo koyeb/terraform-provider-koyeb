@@ -2,274 +2,16 @@ package koyeb
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
+	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
-
-func gitHubRegistrySchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"username": {
-				Type:        schema.TypeString,
-				Description: "The registry username",
-				Required:    true,
-			},
-			"password": {
-				Type:        schema.TypeString,
-				Description: "The registry password",
-				Required:    true,
-				Sensitive:   true,
-			},
-		},
-	}
-}
-
-func expandGitHubRegistry(config []interface{}) *koyeb.GitHubRegistryConfiguration {
-	rawGitHubRegistry := config[0].(map[string]interface{})
-
-	gitHubRegistry := &koyeb.GitHubRegistryConfiguration{
-		Username: toOpt(rawGitHubRegistry["username"].(string)),
-		Password: toOpt(rawGitHubRegistry["password"].(string)),
-	}
-
-	return gitHubRegistry
-}
-
-func flattenGitHubRegistry(gitHubRegistry *koyeb.GitHubRegistryConfiguration) []interface{} {
-	result := make([]interface{}, 0)
-
-	r := make(map[string]interface{})
-	r["username"] = gitHubRegistry.GetUsername()
-	r["password"] = gitHubRegistry.GetPassword()
-
-	result = append(result, r)
-
-	return result
-}
-
-func gitLabRegistrySchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"username": {
-				Type:        schema.TypeString,
-				Description: "The registry username",
-				Required:    true,
-			},
-			"password": {
-				Type:        schema.TypeString,
-				Description: "The registry password",
-				Required:    true,
-				Sensitive:   true,
-			},
-		},
-	}
-}
-
-func expandGitLabRegistry(config []interface{}) *koyeb.GitLabRegistryConfiguration {
-	rawGitLabRegistry := config[0].(map[string]interface{})
-
-	gitLabRegistry := &koyeb.GitLabRegistryConfiguration{
-		Username: toOpt(rawGitLabRegistry["username"].(string)),
-		Password: toOpt(rawGitLabRegistry["password"].(string)),
-	}
-
-	return gitLabRegistry
-}
-
-func flattenGitLabRegistry(gitLabRegistry *koyeb.GitLabRegistryConfiguration) []interface{} {
-	result := make([]interface{}, 0)
-
-	r := make(map[string]interface{})
-	r["username"] = gitLabRegistry.GetUsername()
-	r["password"] = gitLabRegistry.GetPassword()
-
-	result = append(result, r)
-
-	return result
-}
-
-func digitalOceanRegistrySchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"username": {
-				Type:        schema.TypeString,
-				Description: "The registry username",
-				Required:    true,
-			},
-			"password": {
-				Type:        schema.TypeString,
-				Description: "The registry password",
-				Required:    true,
-				Sensitive:   true,
-			},
-		},
-	}
-}
-
-func expandDigitalOceanRegistry(config []interface{}) *koyeb.DigitalOceanRegistryConfiguration {
-	rawDigitalOceanRegistry := config[0].(map[string]interface{})
-
-	digitalOceanRegistry := &koyeb.DigitalOceanRegistryConfiguration{
-		Username: toOpt(rawDigitalOceanRegistry["username"].(string)),
-		Password: toOpt(rawDigitalOceanRegistry["password"].(string)),
-	}
-
-	return digitalOceanRegistry
-}
-
-func flattenDigitalOceanRegistry(digitalOceanRegistry *koyeb.DigitalOceanRegistryConfiguration) []interface{} {
-	result := make([]interface{}, 0)
-
-	r := make(map[string]interface{})
-	r["username"] = digitalOceanRegistry.GetUsername()
-	r["password"] = digitalOceanRegistry.GetPassword()
-
-	result = append(result, r)
-
-	return result
-}
-
-func dockerHubRegistrySchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"username": {
-				Type:        schema.TypeString,
-				Description: "The registry username",
-				Required:    true,
-			},
-			"password": {
-				Type:        schema.TypeString,
-				Description: "The registry password",
-				Required:    true,
-				Sensitive:   true,
-			},
-		},
-	}
-}
-
-func expandDockerHubRegistry(config []interface{}) *koyeb.DockerHubRegistryConfiguration {
-	rawDockerHubRegistry := config[0].(map[string]interface{})
-
-	dockerHubRegistry := &koyeb.DockerHubRegistryConfiguration{
-		Username: toOpt(rawDockerHubRegistry["username"].(string)),
-		Password: toOpt(rawDockerHubRegistry["password"].(string)),
-	}
-
-	return dockerHubRegistry
-}
-
-func flattenDockerHubRegistry(dockerHubRegistry *koyeb.DockerHubRegistryConfiguration) []interface{} {
-	result := make([]interface{}, 0)
-
-	r := make(map[string]interface{})
-	r["username"] = dockerHubRegistry.GetUsername()
-	r["password"] = dockerHubRegistry.GetPassword()
-
-	result = append(result, r)
-
-	return result
-}
-
-func privateRegistrySchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"username": {
-				Type:        schema.TypeString,
-				Description: "The registry username",
-				Required:    true,
-			},
-			"password": {
-				Type:        schema.TypeString,
-				Description: "The registry password",
-				Required:    true,
-				Sensitive:   true,
-			},
-			"url": {
-				Type:        schema.TypeString,
-				Description: "The registry url",
-				Required:    true,
-				// ValidateFunc: validation.IsURLWithScheme([]string{"https", "http"}),
-			},
-		},
-	}
-}
-
-func expandPrivateRegistry(config []interface{}) *koyeb.PrivateRegistryConfiguration {
-	rawPrivateRegistry := config[0].(map[string]interface{})
-
-	dockerHubRegistry := &koyeb.PrivateRegistryConfiguration{
-		Username: toOpt(rawPrivateRegistry["username"].(string)),
-		Password: toOpt(rawPrivateRegistry["password"].(string)),
-		Url:      toOpt(rawPrivateRegistry["url"].(string)),
-	}
-
-	return dockerHubRegistry
-}
-
-func flattenPrivateRegistry(privateRegistry *koyeb.PrivateRegistryConfiguration) []interface{} {
-	result := make([]interface{}, 0)
-
-	r := make(map[string]interface{})
-	r["username"] = privateRegistry.GetUsername()
-	r["password"] = privateRegistry.GetPassword()
-	r["url"] = privateRegistry.GetUrl()
-
-	result = append(result, r)
-
-	return result
-}
-
-func azureRegistrySchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"username": {
-				Type:        schema.TypeString,
-				Description: "The registry username",
-				Required:    true,
-			},
-			"password": {
-				Type:        schema.TypeString,
-				Description: "The registry password",
-				Required:    true,
-				Sensitive:   true,
-			},
-			"registry_name": {
-				Type:        schema.TypeString,
-				Description: "The registry name",
-				Required:    true,
-			},
-		},
-	}
-}
-
-func expandAzureContainerRegistry(config []interface{}) *koyeb.AzureContainerRegistryConfiguration {
-	rawAzureContainerRegistry := config[0].(map[string]interface{})
-
-	azureContainerRegistry := &koyeb.AzureContainerRegistryConfiguration{
-		Username:     toOpt(rawAzureContainerRegistry["username"].(string)),
-		Password:     toOpt(rawAzureContainerRegistry["password"].(string)),
-		RegistryName: toOpt(rawAzureContainerRegistry["registry_name"].(string)),
-	}
-
-	return azureContainerRegistry
-}
-
-func flattenAzureContainerRegistry(azureContainerRegistry *koyeb.AzureContainerRegistryConfiguration) []interface{} {
-	result := make([]interface{}, 0)
-
-	r := make(map[string]interface{})
-	r["username"] = azureContainerRegistry.GetUsername()
-	r["password"] = azureContainerRegistry.GetPassword()
-	r["registry_name"] = azureContainerRegistry.GetRegistryName()
-
-	result = append(result, r)
-
-	return result
-}
 
 func secretSchema() map[string]*schema.Schema {
 	secret := map[string]*schema.Schema{
@@ -308,11 +50,11 @@ func secretSchema() map[string]*schema.Schema {
 			Sensitive:   true,
 			ConflictsWith: []string{
 				"docker_hub_registry",
-				"azure_container_registry",
 				"github_registry",
 				"gitlab_registry",
-				"private_registry",
 				"digital_ocean_container_registry",
+				"private_registry",
+				"azure_container_registry",
 			},
 		},
 		"docker_hub_registry": {
@@ -322,11 +64,11 @@ func secretSchema() map[string]*schema.Schema {
 			Description: "The DockerHub registry configuration to use",
 			MaxItems:    1,
 			ConflictsWith: []string{
-				"azure_container_registry",
 				"github_registry",
 				"gitlab_registry",
-				"private_registry",
 				"digital_ocean_container_registry",
+				"private_registry",
+				"azure_container_registry",
 			},
 			Set: schema.HashResource(dockerHubRegistrySchema()),
 		},
@@ -338,10 +80,10 @@ func secretSchema() map[string]*schema.Schema {
 			MaxItems:    1,
 			ConflictsWith: []string{
 				"docker_hub_registry",
-				"azure_container_registry",
 				"gitlab_registry",
-				"private_registry",
 				"digital_ocean_container_registry",
+				"private_registry",
+				"azure_container_registry",
 			},
 			Set: schema.HashResource(gitHubRegistrySchema()),
 		},
@@ -353,10 +95,10 @@ func secretSchema() map[string]*schema.Schema {
 			MaxItems:    1,
 			ConflictsWith: []string{
 				"docker_hub_registry",
-				"azure_container_registry",
 				"github_registry",
-				"private_registry",
 				"digital_ocean_container_registry",
+				"private_registry",
+				"azure_container_registry",
 			},
 			Set: schema.HashResource(gitLabRegistrySchema()),
 		},
@@ -368,10 +110,10 @@ func secretSchema() map[string]*schema.Schema {
 			MaxItems:    1,
 			ConflictsWith: []string{
 				"docker_hub_registry",
-				"azure_container_registry",
 				"github_registry",
 				"gitlab_registry",
 				"private_registry",
+				"azure_container_registry",
 			},
 			Set: schema.HashResource(digitalOceanRegistrySchema()),
 		},
@@ -383,10 +125,10 @@ func secretSchema() map[string]*schema.Schema {
 			MaxItems:    1,
 			ConflictsWith: []string{
 				"docker_hub_registry",
-				"azure_container_registry",
 				"github_registry",
 				"gitlab_registry",
 				"digital_ocean_container_registry",
+				"azure_container_registry",
 			},
 			Set: schema.HashResource(privateRegistrySchema()),
 		},
@@ -400,8 +142,8 @@ func secretSchema() map[string]*schema.Schema {
 				"docker_hub_registry",
 				"github_registry",
 				"gitlab_registry",
-				"private_registry",
 				"digital_ocean_container_registry",
+				"private_registry",
 			},
 			Set: schema.HashResource(privateRegistrySchema()),
 		},
@@ -420,9 +162,272 @@ func secretSchema() map[string]*schema.Schema {
 	return secret
 }
 
+func dockerHubRegistrySchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"username": {
+				Type:        schema.TypeString,
+				Description: "The registry username",
+				Required:    true,
+			},
+			"password": {
+				Type:        schema.TypeString,
+				Description: "The registry password",
+				Required:    true,
+				Sensitive:   true,
+			},
+		},
+	}
+}
+
+func gitHubRegistrySchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"username": {
+				Type:        schema.TypeString,
+				Description: "The registry username",
+				Required:    true,
+			},
+			"password": {
+				Type:        schema.TypeString,
+				Description: "The registry password",
+				Required:    true,
+				Sensitive:   true,
+			},
+		},
+	}
+}
+
+func gitLabRegistrySchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"username": {
+				Type:        schema.TypeString,
+				Description: "The registry username",
+				Required:    true,
+			},
+			"password": {
+				Type:        schema.TypeString,
+				Description: "The registry password",
+				Required:    true,
+				Sensitive:   true,
+			},
+		},
+	}
+}
+
+func digitalOceanRegistrySchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"username": {
+				Type:        schema.TypeString,
+				Description: "The registry username",
+				Required:    true,
+			},
+			"password": {
+				Type:        schema.TypeString,
+				Description: "The registry password",
+				Required:    true,
+				Sensitive:   true,
+			},
+		},
+	}
+}
+
+func privateRegistrySchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"username": {
+				Type:        schema.TypeString,
+				Description: "The registry username",
+				Required:    true,
+			},
+			"password": {
+				Type:        schema.TypeString,
+				Description: "The registry password",
+				Required:    true,
+				Sensitive:   true,
+			},
+			"url": {
+				Type:        schema.TypeString,
+				Description: "The registry url",
+				Required:    true,
+			},
+		},
+	}
+}
+
+func azureRegistrySchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"username": {
+				Type:        schema.TypeString,
+				Description: "The registry username",
+				Required:    true,
+			},
+			"password": {
+				Type:        schema.TypeString,
+				Description: "The registry password",
+				Required:    true,
+				Sensitive:   true,
+			},
+			"registry_name": {
+				Type:        schema.TypeString,
+				Description: "The registry name",
+				Required:    true,
+			},
+		},
+	}
+}
+
+func expandDockerHubRegistry(config []interface{}) *koyeb.DockerHubRegistryConfiguration {
+	rawDockerHubRegistry := config[0].(map[string]interface{})
+
+	log.Printf("DockerHubRegistry e: %v", rawDockerHubRegistry)
+
+	dockerHubRegistry := &koyeb.DockerHubRegistryConfiguration{
+		Username: toOpt(rawDockerHubRegistry["username"].(string)),
+		Password: toOpt(rawDockerHubRegistry["password"].(string)),
+	}
+
+	return dockerHubRegistry
+}
+
+func flattenDockerHubRegistry(secretValue map[string]interface{}) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["username"] = secretValue["username"]
+	r["password"] = secretValue["password"]
+
+	result = append(result, r)
+
+	return result
+}
+
+func expandGitHubRegistry(config []interface{}) *koyeb.GitHubRegistryConfiguration {
+	rawGitHubRegistry := config[0].(map[string]interface{})
+
+	log.Printf("GitHubRegistry e: %v", rawGitHubRegistry)
+
+	gitHubRegistry := &koyeb.GitHubRegistryConfiguration{
+		Username: toOpt(rawGitHubRegistry["username"].(string)),
+		Password: toOpt(rawGitHubRegistry["password"].(string)),
+	}
+
+	return gitHubRegistry
+}
+
+func flattenGitHubRegistry(secretValue map[string]interface{}) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["username"] = secretValue["username"]
+	r["password"] = secretValue["password"]
+
+	result = append(result, r)
+
+	return result
+}
+
+func expandGitLabRegistry(config []interface{}) *koyeb.GitLabRegistryConfiguration {
+	rawGitLabRegistry := config[0].(map[string]interface{})
+
+	gitLabRegistry := &koyeb.GitLabRegistryConfiguration{
+		Username: toOpt(rawGitLabRegistry["username"].(string)),
+		Password: toOpt(rawGitLabRegistry["password"].(string)),
+	}
+
+	return gitLabRegistry
+}
+
+func flattenGitLabRegistry(secretValue map[string]interface{}) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["username"] = secretValue["username"]
+	r["password"] = secretValue["password"]
+
+	result = append(result, r)
+
+	return result
+}
+
+func expandDigitalOceanRegistry(config []interface{}) *koyeb.DigitalOceanRegistryConfiguration {
+	rawDigitalOceanRegistry := config[0].(map[string]interface{})
+
+	digitalOceanRegistry := &koyeb.DigitalOceanRegistryConfiguration{
+		Username: toOpt(rawDigitalOceanRegistry["username"].(string)),
+		Password: toOpt(rawDigitalOceanRegistry["password"].(string)),
+	}
+
+	return digitalOceanRegistry
+}
+
+func flattenDigitalOceanRegistry(secretValue map[string]interface{}) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["username"] = secretValue["username"]
+	r["password"] = secretValue["password"]
+
+	result = append(result, r)
+
+	return result
+}
+
+func expandPrivateRegistry(config []interface{}) *koyeb.PrivateRegistryConfiguration {
+	rawPrivateRegistry := config[0].(map[string]interface{})
+
+	dockerHubRegistry := &koyeb.PrivateRegistryConfiguration{
+		Username: toOpt(rawPrivateRegistry["username"].(string)),
+		Password: toOpt(rawPrivateRegistry["password"].(string)),
+		Url:      toOpt(rawPrivateRegistry["url"].(string)),
+	}
+
+	return dockerHubRegistry
+}
+
+func flattenPrivateRegistry(secretValue map[string]interface{}) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["username"] = secretValue["username"]
+	r["password"] = secretValue["password"]
+	r["url"] = secretValue["url"]
+
+	result = append(result, r)
+
+	return result
+}
+
+func expandAzureContainerRegistry(config []interface{}) *koyeb.AzureContainerRegistryConfiguration {
+	rawAzureContainerRegistry := config[0].(map[string]interface{})
+
+	azureContainerRegistry := &koyeb.AzureContainerRegistryConfiguration{
+		Username:     toOpt(rawAzureContainerRegistry["username"].(string)),
+		Password:     toOpt(rawAzureContainerRegistry["password"].(string)),
+		RegistryName: toOpt(rawAzureContainerRegistry["registry_name"].(string)),
+	}
+
+	return azureContainerRegistry
+}
+
+func flattenAzureContainerRegistry(secretValue map[string]interface{}) []interface{} {
+	result := make([]interface{}, 0)
+
+	r := make(map[string]interface{})
+	r["username"] = secretValue["username"]
+	r["password"] = secretValue["password"]
+	r["registry_name"] = secretValue["registry_name"]
+
+	result = append(result, r)
+
+	return result
+}
+
 func resourceKoyebSecret() *schema.Resource {
 	return &schema.Resource{
-		// This description is used by the documentation generator and the language server.
 		Description: "Secret resource in the Koyeb Terraform provider.",
 
 		CreateContext: resourceKoyebSecretCreate,
@@ -430,24 +435,45 @@ func resourceKoyebSecret() *schema.Resource {
 		UpdateContext: resourceKoyebSecretUpdate,
 		DeleteContext: resourceKoyebSecretDelete,
 
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
+
 		Schema: secretSchema(),
 	}
 }
 
-func setSecretAttribute(d *schema.ResourceData, secret koyeb.Secret) error {
+func setSecretAttribute(d *schema.ResourceData, secret koyeb.Secret, secretValue interface{}) error {
 	d.SetId(secret.GetId())
 	d.Set("name", secret.GetName())
-	d.Set("type", secret.GetType())
-	// d.Set("value", secret.GetValue())
-	// d.Set("docker_hub_registry", flattenDockerHubRegistry(secret.DockerHubRegistry))
-	// d.Set("github_registry", flattenGitHubRegistry(secret.GithubRegistry))
-	// d.Set("gitlab_registry", flattenGitLabRegistry(secret.GitlabRegistry))
-	// d.Set("digital_ocean_container_registry", flattenDigitalOceanRegistry(secret.DigitalOceanRegistry))
-	// d.Set("private_registry", flattenPrivateRegistry(secret.PrivateRegistry))
-	// d.Set("azure_container_registry", flattenAzureContainerRegistry(secret.AzureContainerRegistry))
 	d.Set("organization_id", secret.GetOrganizationId())
-	d.Set("created_at", secret.GetCreatedAt().UTC().String())
+	d.Set("type", secret.GetType())
+
+	if _, ok := secret.GetValueOk(); ok {
+		log.Printf("Setting secret value: %v", secretValue)
+		d.Set("value", secretValue)
+	}
+	if _, ok := secret.GetDockerHubRegistryOk(); ok {
+		d.Set("docker_hub_registry", flattenDockerHubRegistry(secretValue.(map[string]interface{})))
+	}
+	if _, ok := secret.GetGithubRegistryOk(); ok {
+		d.Set("github_registry", flattenGitHubRegistry(secretValue.(map[string]interface{})))
+	}
+	if _, ok := secret.GetGitlabRegistryOk(); ok {
+		d.Set("gitlab_registry", flattenGitLabRegistry(secretValue.(map[string]interface{})))
+	}
+	if _, ok := secret.GetDigitalOceanRegistryOk(); ok {
+		d.Set("digital_ocean_container_registry", flattenDigitalOceanRegistry(secretValue.(map[string]interface{})))
+	}
+	if _, ok := secret.GetPrivateRegistryOk(); ok {
+		d.Set("private_registry", flattenPrivateRegistry(secretValue.(map[string]interface{})))
+	}
+	if _, ok := secret.GetAzureContainerRegistryOk(); ok {
+		d.Set("azure_container_registry", flattenAzureContainerRegistry(secretValue.(map[string]interface{})))
+	}
+
 	d.Set("updated_at", secret.GetUpdatedAt().UTC().String())
+	d.Set("created_at", secret.GetCreatedAt().UTC().String())
 
 	return nil
 }
@@ -501,8 +527,21 @@ func resourceKoyebSecretCreate(ctx context.Context, d *schema.ResourceData, meta
 
 func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
+	mapper := idmapper.NewMapper(context.Background(), client)
+	secretMapper := mapper.Secret()
+	var secretId string
 
-	res, resp, err := client.SecretsApi.GetSecret(context.Background(), d.Id()).Execute()
+	if d.Id() != "" {
+		id, err := secretMapper.ResolveID(d.Id())
+
+		if err != nil {
+			return diag.Errorf("Error retrieving secret: %s", err)
+		}
+
+		secretId = id
+	}
+
+	res, resp, err := client.SecretsApi.GetSecret(context.Background(), secretId).Execute()
 	if err != nil {
 		// If the Secret is somehow already destroyed, mark as
 		// successfully gone
@@ -514,7 +553,30 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 		return diag.Errorf("Error retrieving secret: %s (%v %v)", err, resp, res)
 	}
 
-	setSecretAttribute(d, *res.Secret)
+	body := make(map[string]interface{})
+	_, resp, err = client.SecretsApi.RevealSecret(context.Background(), secretId).Body(body).Execute()
+
+	if resp.StatusCode != 200 && err != nil {
+		return diag.Errorf("Error retrieving secret value: %s", err)
+
+	}
+
+	buffer, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return diag.Errorf("Error while reading the response body: %s", err)
+	}
+
+	output := map[string]interface{}{}
+	if err := json.Unmarshal(buffer, &output); err != nil {
+		return diag.Errorf("Error while unmarshalling the response body: %s", err)
+	}
+
+	secretValue, ok := output["value"]
+	if !ok {
+		return diag.Errorf("Error while reading the secret value: %s", err)
+	}
+
+	setSecretAttribute(d, *res.Secret, secretValue)
 
 	return nil
 }
