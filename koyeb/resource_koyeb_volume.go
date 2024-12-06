@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
+	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func volumeSchema() map[string]*schema.Schema {
@@ -20,7 +21,6 @@ func volumeSchema() map[string]*schema.Schema {
 		"volume_type": {
 			Type:        schema.TypeString,
 			Description: "The volume type",
-			ForceNew:    true,
 			Optional:    true,
 			Default:     "PERSISTENT_VOLUME_BACKING_STORE_LOCAL_BLK",
 			ValidateFunc: validation.StringInSlice([]string{
@@ -98,7 +98,6 @@ func volumeSchema() map[string]*schema.Schema {
 
 func resourceKoyebVolume() *schema.Resource {
 	return &schema.Resource{
-		// This description is used by the documentation generator and the language server.
 		Description: "Volume resource in the Koyeb Terraform provider.",
 
 		CreateContext: resourceKoyebVolumeCreate,
@@ -106,24 +105,29 @@ func resourceKoyebVolume() *schema.Resource {
 		UpdateContext: resourceKoyebVolumeUpdate,
 		DeleteContext: resourceKoyebVolumeDelete,
 
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
+
 		Schema: volumeSchema(),
 	}
 }
 
 func setVolumeAttribute(d *schema.ResourceData, volume koyeb.PersistentVolume) error {
 	d.SetId(volume.GetId())
+	d.Set("volume_type", volume.GetBackingStore())
 	d.Set("name", volume.GetName())
-	d.Set("max_size", volume.GetMaxSize())
-	d.Set("region", volume.GetRegion())
+	d.Set("organization_id", volume.GetOrganizationId())
 	d.Set("snapshot_id", volume.GetSnapshotId())
 	d.Set("service_id", volume.GetServiceId())
+	d.Set("region", volume.GetRegion())
 	d.Set("read_only", volume.GetReadOnly())
+	d.Set("max_size", volume.GetMaxSize())
 	d.Set("cur_size", volume.GetCurSize())
 	d.Set("status", volume.GetStatus())
 	d.Set("backing_store", volume.GetBackingStore())
-	d.Set("organization_id", volume.GetOrganizationId())
-	d.Set("created_at", volume.GetCreatedAt().UTC().String())
 	d.Set("updated_at", volume.GetUpdatedAt().UTC().String())
+	d.Set("created_at", volume.GetCreatedAt().UTC().String())
 
 	return nil
 }
@@ -137,21 +141,34 @@ func resourceKoyebVolumeCreate(ctx context.Context, d *schema.ResourceData, meta
 		MaxSize:    toOpt(int64(d.Get("max_size").(int))),
 		Region:     toOpt(d.Get("region").(string)),
 	}).Execute()
+
 	if err != nil {
 		return diag.Errorf("Error creating volume: %s (%v %v)", err, resp, res)
 	}
 
+	d.SetId(*res.Volume.Id)
 	log.Printf("[INFO] Created volume name: %s", *res.Volume.Name)
-
-	setVolumeAttribute(d, *res.Volume)
 
 	return resourceKoyebVolumeRead(ctx, d, meta)
 }
 
 func resourceKoyebVolumeRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
+	mapper := idmapper.NewMapper(context.Background(), client)
+	volumeMapper := mapper.Volume()
+	var volumeId string
 
-	res, resp, err := client.PersistentVolumesApi.GetPersistentVolume(context.Background(), d.Id()).Execute()
+	if d.Id() != "" {
+		id, err := volumeMapper.ResolveID(d.Id())
+
+		if err != nil {
+			return diag.Errorf("Error retrieving volume: %s", err)
+		}
+
+		volumeId = id
+	}
+
+	res, resp, err := client.PersistentVolumesApi.GetPersistentVolume(context.Background(), volumeId).Execute()
 	if err != nil {
 		// If the volume is somehow already destroyed, mark as
 		// successfully gone
@@ -181,6 +198,7 @@ func resourceKoyebVolumeUpdate(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	log.Printf("[INFO] Updated volume name: %s", *res.Volume.Name)
+
 	return resourceKoyebVolumeRead(ctx, d, meta)
 }
 
