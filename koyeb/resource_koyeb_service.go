@@ -13,7 +13,7 @@ import (
 )
 
 func serviceSchema() map[string]*schema.Schema {
-	service := map[string]*schema.Schema{
+	return map[string]*schema.Schema{
 		"id": {
 			Type:        schema.TypeString,
 			Computed:    true,
@@ -101,8 +101,6 @@ func serviceSchema() map[string]*schema.Schema {
 			Description: "The date and time of when the service was created",
 		},
 	}
-
-	return service
 }
 
 func deploymentDefinitionSchena() *schema.Resource {
