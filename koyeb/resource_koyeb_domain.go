@@ -26,17 +26,6 @@ func domainSchema() map[string]*schema.Schema {
 			Required:     true,
 			ValidateFunc: validation.NoZeroValues,
 		},
-		"version": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The version of the domain",
-		},
-		"deployment_group": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Optional:    true,
-			Description: "The deployment group assigned to the domain",
-		},
 		"organization_id": {
 			Type:        schema.TypeString,
 			Computed:    true,
@@ -47,6 +36,17 @@ func domainSchema() map[string]*schema.Schema {
 			Optional:     true,
 			Description:  "The app name the domain is assigned to",
 			ValidateFunc: validation.StringLenBetween(3, 23),
+		},
+		"version": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The version of the domain",
+		},
+		"deployment_group": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Optional:    true,
+			Description: "The deployment group assigned to the domain",
 		},
 		"type": {
 			Type:        schema.TypeString,
@@ -97,16 +97,20 @@ func flattenDomains(domains *[]koyeb.Domain, appName string) []map[string]interf
 	for i, domain := range *domains {
 		r := make(map[string]interface{})
 
-		r["name"] = domain.GetName()
 		r["id"] = domain.GetId()
-		r["type"] = domain.GetType()
-		r["status"] = domain.GetStatus()
+		r["name"] = domain.GetName()
+		r["organization_id"] = domain.GetOrganizationId()
+		r["app_name"] = appName
 		r["version"] = domain.GetVersion()
 		r["deployment_group"] = domain.GetDeploymentGroup()
-		r["organization_id"] = domain.GetOrganizationId()
-		r["created_at"] = domain.GetCreatedAt().UTC().String()
-		r["updated_at"] = domain.GetUpdatedAt().UTC().String()
-		r["app_name"] = appName
+		r["type"] = domain.GetType()
+
+		if intendedCname, ok := domain.GetIntendedCnameOk(); ok {
+			r["intended_cname"] = intendedCname
+		}
+
+		r["status"] = domain.GetStatus()
+
 		if messages, ok := domain.GetMessagesOk(); ok && len(domain.GetMessages()) > 0 {
 			r["messages"] = strings.Join(messages, " ")
 		}
@@ -115,9 +119,8 @@ func flattenDomains(domains *[]koyeb.Domain, appName string) []map[string]interf
 			r["verified_at"] = verifiedAt
 		}
 
-		if intendedCname, ok := domain.GetIntendedCnameOk(); ok {
-			r["intended_cname"] = intendedCname
-		}
+		r["updated_at"] = domain.GetUpdatedAt().UTC().String()
+		r["created_at"] = domain.GetCreatedAt().UTC().String()
 
 		result[i] = r
 	}
@@ -144,7 +147,6 @@ func setDomainAttribute(
 	appName string,
 ) error {
 	d.SetId(domain.GetId())
-	d.Set("id", domain.GetId())
 	d.Set("name", domain.GetName())
 	d.Set("version", domain.GetVersion())
 	d.Set("status", domain.GetStatus())
