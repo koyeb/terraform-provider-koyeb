@@ -34,6 +34,7 @@ data "koyeb_service" "my-service" {
 - `active_deployment` (String) The service active deployment id
 - `app_id` (String) The app id the service is assigned
 - `created_at` (String) The date and time of when the service was created
+- `definition` (List of Object) The service deployment definition (see [below for nested schema](#nestedatt--definition))
 - `id` (String) The id of the service
 - `latest_deployment` (String) The service latest deployment id
 - `name` (String) The name of the service
@@ -44,5 +45,225 @@ data "koyeb_service" "my-service" {
 - `terminated_at` (String) The date and time of when the service was last updated
 - `updated_at` (String) The date and time of when the service was last updated
 - `version` (String) The version of the service
+
+<a id="nestedatt--definition"></a>
+### Nested Schema for `definition`
+
+Read-Only:
+
+- `docker` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--docker))
+- `env` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--env))
+- `git` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--git))
+- `health_checks` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--health_checks))
+- `instance_types` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--instance_types))
+- `name` (String)
+- `ports` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--ports))
+- `regions` (Set of String)
+- `routes` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--routes))
+- `scalings` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings))
+- `skip_cache` (Boolean)
+- `type` (String)
+- `volumes` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--volumes))
+
+<a id="nestedobjatt--definition--docker"></a>
+### Nested Schema for `definition.docker`
+
+Read-Only:
+
+- `args` (List of String)
+- `command` (String)
+- `entrypoint` (List of String)
+- `image` (String)
+- `image_registry_secret` (String)
+- `privileged` (Boolean)
+
+
+<a id="nestedobjatt--definition--env"></a>
+### Nested Schema for `definition.env`
+
+Read-Only:
+
+- `key` (String)
+- `scopes` (List of String)
+- `secret` (String)
+- `value` (String)
+
+
+<a id="nestedobjatt--definition--git"></a>
+### Nested Schema for `definition.git`
+
+Read-Only:
+
+- `branch` (String)
+- `buildpack` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--git--buildpack))
+- `dockerfile` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--git--dockerfile))
+- `no_deploy_on_push` (Boolean)
+- `repository` (String)
+- `workdir` (String)
+
+<a id="nestedobjatt--definition--git--buildpack"></a>
+### Nested Schema for `definition.git.buildpack`
+
+Read-Only:
+
+- `build_command` (String)
+- `privileged` (Boolean)
+- `run_command` (String)
+
+
+<a id="nestedobjatt--definition--git--dockerfile"></a>
+### Nested Schema for `definition.git.dockerfile`
+
+Read-Only:
+
+- `args` (List of String)
+- `command` (String)
+- `dockerfile` (String)
+- `entrypoint` (List of String)
+- `privileged` (Boolean)
+- `target` (String)
+
+
+
+<a id="nestedobjatt--definition--health_checks"></a>
+### Nested Schema for `definition.health_checks`
+
+Read-Only:
+
+- `grace_period` (Number)
+- `http` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--health_checks--http))
+- `interval` (Number)
+- `restart_limit` (Number)
+- `tcp` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--health_checks--tcp))
+- `timeout` (Number)
+
+<a id="nestedobjatt--definition--health_checks--http"></a>
+### Nested Schema for `definition.health_checks.http`
+
+Read-Only:
+
+- `headers` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--health_checks--http--headers))
+- `method` (String)
+- `path` (String)
+- `port` (Number)
+
+<a id="nestedobjatt--definition--health_checks--http--headers"></a>
+### Nested Schema for `definition.health_checks.http.port`
+
+Read-Only:
+
+- `key` (String)
+- `value` (String)
+
+
+
+<a id="nestedobjatt--definition--health_checks--tcp"></a>
+### Nested Schema for `definition.health_checks.tcp`
+
+Read-Only:
+
+- `port` (Number)
+
+
+
+<a id="nestedobjatt--definition--instance_types"></a>
+### Nested Schema for `definition.instance_types`
+
+Read-Only:
+
+- `scopes` (List of String)
+- `type` (String)
+
+
+<a id="nestedobjatt--definition--ports"></a>
+### Nested Schema for `definition.ports`
+
+Read-Only:
+
+- `port` (Number)
+- `protocol` (String)
+
+
+<a id="nestedobjatt--definition--routes"></a>
+### Nested Schema for `definition.routes`
+
+Read-Only:
+
+- `path` (String)
+- `port` (Number)
+
+
+<a id="nestedobjatt--definition--scalings"></a>
+### Nested Schema for `definition.scalings`
+
+Read-Only:
+
+- `max` (Number)
+- `min` (Number)
+- `scopes` (List of String)
+- `targets` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets))
+
+<a id="nestedobjatt--definition--scalings--targets"></a>
+### Nested Schema for `definition.scalings.targets`
+
+Read-Only:
+
+- `average_cpu` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--average_cpu))
+- `average_mem` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--average_mem))
+- `concurrent_requests` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--concurrent_requests))
+- `request_response_time` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--request_response_time))
+- `requests_per_second` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--requests_per_second))
+
+<a id="nestedobjatt--definition--scalings--targets--average_cpu"></a>
+### Nested Schema for `definition.scalings.targets.requests_per_second`
+
+Read-Only:
+
+- `value` (Number)
+
+
+<a id="nestedobjatt--definition--scalings--targets--average_mem"></a>
+### Nested Schema for `definition.scalings.targets.requests_per_second`
+
+Read-Only:
+
+- `value` (Number)
+
+
+<a id="nestedobjatt--definition--scalings--targets--concurrent_requests"></a>
+### Nested Schema for `definition.scalings.targets.requests_per_second`
+
+Read-Only:
+
+- `value` (Number)
+
+
+<a id="nestedobjatt--definition--scalings--targets--request_response_time"></a>
+### Nested Schema for `definition.scalings.targets.requests_per_second`
+
+Read-Only:
+
+- `value` (Number)
+
+
+<a id="nestedobjatt--definition--scalings--targets--requests_per_second"></a>
+### Nested Schema for `definition.scalings.targets.requests_per_second`
+
+Read-Only:
+
+- `value` (Number)
+
+
+
+
+<a id="nestedobjatt--definition--volumes"></a>
+### Nested Schema for `definition.volumes`
+
+Read-Only:
+
+- `id` (String)
+- `path` (String)
+- `replica_index` (Number)
+- `scope` (List of String)
 
 

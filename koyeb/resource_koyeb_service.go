@@ -12,12 +12,343 @@ import (
 	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
+func serviceSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		"id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The service ID",
+		},
+		"name": {
+			Type:        schema.TypeString,
+			Description: "The service name",
+			Computed:    true,
+		},
+		"app_name": {
+			Type:         schema.TypeString,
+			Required:     true,
+			ForceNew:     true,
+			Description:  "The app name the service is assigned to",
+			ValidateFunc: validation.StringLenBetween(3, 23),
+		},
+		"app_id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The app id the service is assigned to",
+		},
+		"definition": {
+			Type:        schema.TypeList,
+			MinItems:    1,
+			MaxItems:    1,
+			Required:    true,
+			Description: "The service deployment definition",
+			Elem:        deploymentDefinitionSchena(),
+		},
+		"organization_id": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The organization ID owning the service",
+		},
+		"active_deployment": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The service active deployment ID",
+		},
+		"latest_deployment": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The service latest deployment ID",
+		},
+		"version": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The version of the service",
+		},
+		"status": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The status of the service",
+		},
+		"messages": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Optional:    true,
+			Description: "The status messages of the service",
+		},
+		"paused_at": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The date and time of when the service was last updated",
+		},
+		"resumed_at": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The date and time of when the service was last updated",
+		},
+		"terminated_at": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The date and time of when the service was last updated",
+		},
+		"updated_at": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The date and time of when the service was last updated",
+		},
+		"created_at": {
+			Type:        schema.TypeString,
+			Computed:    true,
+			Description: "The date and time of when the service was created",
+		},
+	}
+}
+
+func deploymentDefinitionSchena() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"name": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				Description:  "The service name",
+				ValidateFunc: validation.StringLenBetween(3, 64),
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					return strings.EqualFold(old, new)
+				},
+			},
+			"type": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "WEB",
+				Description:  "The service type, either WEB or WORKER (default WEB)",
+				ValidateFunc: validation.StringInSlice([]string{"WEB", "WORKER"}, false),
+			},
+			"docker": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     dockerSchema(),
+				Set:      schema.HashResource(dockerSchema()),
+				MaxItems: 1,
+			},
+			"git": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     gitSchema(),
+				Set:      schema.HashResource(gitSchema()),
+				MaxItems: 1,
+			},
+			"env": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     envSchema(),
+				Set:      schema.HashResource(envSchema()),
+			},
+			"ports": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     portSchema(),
+				Set:      schema.HashResource(portSchema()),
+			},
+			"skip_cache": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "If set to true, the service will be deployed without using the cache",
+			},
+			"health_checks": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     healthCheckSchema(),
+				Set:      schema.HashResource(healthCheckSchema()),
+			},
+			"routes": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     routeSchema(),
+				Set:      schema.HashResource(routeSchema()),
+			},
+			"instance_types": {
+				Type:     schema.TypeSet,
+				Required: true,
+				MinItems: 1,
+				Elem:     instanceTypeSchema(),
+				Set:      schema.HashResource(instanceTypeSchema()),
+			},
+			"scalings": {
+				Type:     schema.TypeSet,
+				Required: true,
+				MinItems: 1,
+				Elem:     scalingSchema(),
+				Set:      schema.HashResource(scalingSchema()),
+			},
+			"regions": {
+				Type:        schema.TypeSet,
+				Required:    true,
+				Description: "The service deployment regions to deploy to",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"volumes": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The volumes to attach and mount to the service",
+				Elem:        serviceVolumeSchema(),
+				Set:         schema.HashResource(serviceVolumeSchema()),
+			},
+		},
+	}
+}
+
+func dockerSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"image": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The Docker image to use to support your service",
+			},
+			"command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The Docker command to use",
+			},
+			"args": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The Docker args to use",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"entrypoint": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The Docker entrypoint to use",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"privileged": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
+			},
+			"image_registry_secret": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The Koyeb secret containing the container registry credentials",
+			},
+		},
+	}
+}
+
+func gitSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"repository": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The GitHub repository to deploy",
+			},
+			"branch": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The GitHub branch to deploy",
+			},
+			"workdir": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The directory where your source code is located. If not set, the work directory defaults to the root of the repository.",
+			},
+			"buildpack": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     buildpackBuilderSchema(),
+				Set:      schema.HashResource(buildpackBuilderSchema()),
+				MaxItems: 1,
+			},
+			"dockerfile": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     dockerBuilderSchema(),
+				Set:      schema.HashResource(dockerBuilderSchema()),
+				MaxItems: 1,
+			},
+			"no_deploy_on_push": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch",
+			},
+		},
+	}
+}
+
+func buildpackBuilderSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"build_command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The command to build your application during the build phase. If your application does not require a build command, leave this field empty",
+			},
+			"run_command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The command to run your application once the built is completed",
+			},
+			"privileged": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
+			},
+		},
+	}
+}
+
+func dockerBuilderSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"dockerfile": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The location of your Dockerfile relative to the work directory. If not set, the work directory defaults to the root of the repository.",
+			},
+			"entrypoint": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "Override the default entrypoint to execute on the container",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"command": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Override the command to execute on the container",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"args": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The arguments to pass to the Docker command",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"target": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Target build stage: If your Dockerfile contains multi-stage builds, you can choose the target stage to build and deploy by entering its name",
+			},
+			"privileged": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
+			},
+		},
+	}
+}
+
 func envSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
-			"scope": {
+			"scopes": {
 				Type:        schema.TypeList,
 				Optional:    true,
+				Computed:    true,
 				Description: "The regions the environment variable needs to be exposed",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
@@ -34,62 +365,11 @@ func envSchema() *schema.Resource {
 			"secret": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "The secret name to use as the value of the environment variable",
 				Sensitive:   true,
+				Description: "The secret name to use as the value of the environment variable",
 			},
 		},
 	}
-}
-
-func expandEnvs(config []interface{}) []koyeb.DeploymentEnv {
-	envs := make([]koyeb.DeploymentEnv, 0, len(config))
-
-	for _, rawEnv := range config {
-		env := rawEnv.(map[string]interface{})
-
-		e := koyeb.DeploymentEnv{
-			Key: toOpt(env["key"].(string)),
-		}
-
-		rawScope := env["scope"].([]interface{})
-		scope := make([]string, len(rawScope))
-		for i, v := range rawScope {
-			scope[i] = v.(string)
-		}
-		e.Scopes = scope
-
-		if env["value"] != nil && env["value"].(string) != "" {
-			e.Value = toOpt(env["value"].(string))
-		}
-		if env["secret"] != nil && env["secret"].(string) != "" {
-			e.Secret = toOpt(env["secret"].(string))
-		}
-
-		envs = append(envs, e)
-	}
-
-	return envs
-}
-
-func flattenEnvs(envs *[]koyeb.DeploymentEnv) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(*envs))
-
-	for i, env := range *envs {
-		r := make(map[string]interface{})
-
-		r["key"] = *env.Key
-
-		if value, ok := env.GetValueOk(); ok {
-			r["value"] = value
-		}
-		if secret, ok := env.GetSecretOk(); ok {
-			r["secret"] = secret
-		}
-
-		result[i] = r
-	}
-
-	return result
 }
 
 func portSchema() *schema.Resource {
@@ -112,6 +392,309 @@ func portSchema() *schema.Resource {
 			},
 		},
 	}
+}
+
+func healthCheckSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"grace_period": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Description: "The period in seconds to wait for the instance to become healthy, default is 5s",
+			},
+			"interval": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Description: "The period in seconds between two health checks, default is 60s",
+			},
+			"restart_limit": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Description: "The number of consecutive failures before attempting to restart the service, default is 3",
+			},
+			"timeout": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Description: "The maximum time to wait in seconds before considering the check as a failure, default is 5s",
+			},
+			"tcp": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     TCPHealthCheckSchema(),
+				Set:      schema.HashResource(TCPHealthCheckSchema()),
+				MaxItems: 1,
+			},
+			"http": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     HTTPHealthCheckSchema(),
+				Set:      schema.HashResource(HTTPHealthCheckSchema()),
+				MaxItems: 1,
+			},
+		},
+	}
+}
+
+func TCPHealthCheckSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"port": {
+				Type:         schema.TypeInt,
+				Required:     true,
+				Description:  "The port to use to perform the health check",
+				ValidateFunc: validation.IntBetween(1, 65535),
+			},
+		},
+	}
+}
+
+func HTTPHealthCheckSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"port": {
+				Type:         schema.TypeInt,
+				Required:     true,
+				Description:  "The port to use to perform the health check",
+				ValidateFunc: validation.IntBetween(1, 65535),
+			},
+			"path": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The path to use to perform the HTTP health check",
+			},
+			"method": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "An optional HTTP method to use to perform the health check, default is GET",
+			},
+			"headers": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     HTTPHealthCheckHeaderSchema(),
+				Set:      schema.HashResource(HTTPHealthCheckHeaderSchema()),
+			},
+		},
+	}
+}
+
+func HTTPHealthCheckHeaderSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"key": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The name of the header",
+			},
+			"value": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "The value of the header",
+			},
+		},
+	}
+}
+
+func routeSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"port": {
+				Type:         schema.TypeInt,
+				Required:     true,
+				Description:  "The internal port on which this service's run command will listen",
+				ValidateFunc: validation.IntBetween(1, 65535),
+			},
+			"path": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "Path specifies a route by HTTP path prefix. Paths must start with / and must be unique within the app",
+			},
+		},
+	}
+}
+
+func instanceTypeSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"scopes": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Computed:    true,
+				Description: "The regions to use the instance type",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"type": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The instance type to use to support your service",
+			},
+		},
+	}
+}
+
+func scalingSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"scopes": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Computed:    true,
+				Description: "The regions to apply the scaling configuration",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"min": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     1,
+				Description: "The minimal number of instances to use to support your service",
+			},
+			"max": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     1,
+				Description: "The maximum number of instance to use to support your service",
+			},
+			"targets": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     autoScalingTargetSchema(),
+				Set:      schema.HashResource(autoScalingTargetSchema()),
+			},
+		},
+	}
+}
+
+func autoScalingTargetSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"average_cpu": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The CPU usage (expressed as a percentage) across all Instances of your Service within a region",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
+			"average_mem": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The memory usage (expressed as a percentage) across all Instances of your Service within a region",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
+			"requests_per_second": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The number of concurrent requests per second across all Instances of your Service within a region",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
+			"concurrent_requests": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The number of concurrent requests across all Instances of your Service within a region",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
+			"request_response_time": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The average response time of requests across all Instances of your Service within a region",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
+		},
+	}
+}
+
+func autoScalingTargetValueSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"value": {
+				Type:        schema.TypeInt,
+				Required:    true,
+				Description: "The target value of the autoscaling target",
+			},
+		},
+	}
+}
+
+func serviceVolumeSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"scope": {
+				Type:        schema.TypeList,
+				Optional:    true,
+				Description: "The regions to apply the scaling configuration",
+				Elem:        &schema.Schema{Type: schema.TypeString},
+			},
+			"id": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The volume ID to mount to the service",
+			},
+			"path": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Description: "The path where to mount the volume",
+			},
+			"replica_index": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Description: "Explicitly specify the replica index to mount the volume to",
+			},
+		},
+	}
+}
+
+func expandEnvs(config []interface{}) []koyeb.DeploymentEnv {
+	envs := make([]koyeb.DeploymentEnv, 0, len(config))
+
+	for _, rawEnv := range config {
+		env := rawEnv.(map[string]interface{})
+
+		e := koyeb.DeploymentEnv{
+			Key: toOpt(env["key"].(string)),
+		}
+
+		rawScopes := env["scopes"].([]interface{})
+		scopes := make([]string, len(rawScopes))
+		for i, v := range rawScopes {
+			scopes[i] = v.(string)
+		}
+		e.Scopes = scopes
+
+		if env["value"] != nil && env["value"].(string) != "" {
+			e.Value = toOpt(env["value"].(string))
+		}
+		if env["secret"] != nil && env["secret"].(string) != "" {
+			e.Secret = toOpt(env["secret"].(string))
+		}
+
+		envs = append(envs, e)
+	}
+
+	return envs
+}
+
+func flattenEnvs(envs *[]koyeb.DeploymentEnv) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(*envs))
+
+	for i, env := range *envs {
+		r := make(map[string]interface{})
+
+		r["key"] = env.GetKey()
+		// r["scopes"] = env.GetScopes()
+
+		if value, ok := env.GetValueOk(); ok {
+			r["value"] = value
+		}
+		if secret, ok := env.GetSecretOk(); ok {
+			r["secret"] = secret
+		}
+
+		result[i] = r
+	}
+
+	return result
 }
 
 func expandPorts(config []interface{}) []koyeb.DeploymentPort {
@@ -146,24 +729,6 @@ func flattenPorts(ports *[]koyeb.DeploymentPort) []map[string]interface{} {
 	return result
 }
 
-func routeSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"port": {
-				Type:         schema.TypeInt,
-				Required:     true,
-				Description:  "The internal port on which this service's run command will listen",
-				ValidateFunc: validation.IntBetween(1, 65535),
-			},
-			"path": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "Path specifies a route by HTTP path prefix. Paths must start with / and must be unique within the app",
-			},
-		},
-	}
-}
-
 func expandRoutes(config []interface{}) []koyeb.DeploymentRoute {
 	routes := make([]koyeb.DeploymentRoute, 0, len(config))
 
@@ -187,31 +752,13 @@ func flattenRoutes(routes *[]koyeb.DeploymentRoute) []map[string]interface{} {
 	for i, route := range *routes {
 		r := make(map[string]interface{})
 
-		r["port"] = route.Port
-		r["path"] = route.Path
+		r["port"] = route.GetPort()
+		r["path"] = route.GetPath()
 
 		result[i] = r
 	}
 
 	return result
-}
-
-func instanceTypeSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"scope": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Description: "The regions to use the instance type",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"type": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The instance type to use to support your service",
-			},
-		},
-	}
 }
 
 func expandInstanceTypes(config []interface{}) []koyeb.DeploymentInstanceType {
@@ -224,13 +771,15 @@ func expandInstanceTypes(config []interface{}) []koyeb.DeploymentInstanceType {
 			Type: toOpt(instanceType["type"].(string)),
 		}
 
-		rawScope := instanceType["scope"].([]interface{})
-		scope := make([]string, len(rawScope))
-		for i, v := range rawScope {
-			scope[i] = v.(string)
-		}
-		r.Scopes = scope
+		if rawScopes, ok := instanceType["scopes"].([]interface{}); ok && len(rawScopes) > 0 {
+			scopes := make([]string, len(rawScopes))
 
+			for i, v := range rawScopes {
+				scopes[i] = v.(string)
+			}
+
+			r.Scopes = scopes
+		}
 		instanceTypes = append(instanceTypes, r)
 	}
 
@@ -243,83 +792,15 @@ func flattenInstanceTypes(instanceTypes *[]koyeb.DeploymentInstanceType) []map[s
 	for i, instanceType := range *instanceTypes {
 		r := make(map[string]interface{})
 
-		r["type"] = instanceType.Type
+		r["type"] = instanceType.GetType()
+		// if scopes := instanceType.GetScopes(); len(scopes) > 0 {
+		// 	r["scopes"] = scopes
+		// }
 
 		result[i] = r
 	}
 
 	return result
-}
-
-func autoScalingTargetValueSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"value": {
-				Type:        schema.TypeInt,
-				Required:    true,
-				Description: "The target value of the autoscaling target",
-			},
-		},
-	}
-}
-
-func autoScalingTargetSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"average_cpu": {
-				Type:        schema.TypeSet,
-				Optional:    true,
-				Description: "The CPU usage (expressed as a percentage) across all Instances of your Service within a region",
-				Elem:        autoScalingTargetValueSchema(),
-				Set:         schema.HashResource(autoScalingTargetValueSchema()),
-			},
-			"average_mem": {
-				Type:        schema.TypeSet,
-				Optional:    true,
-				Description: "The memory usage (expressed as a percentage) across all Instances of your Service within a region",
-				Elem:        autoScalingTargetValueSchema(),
-				Set:         schema.HashResource(autoScalingTargetValueSchema()),
-			},
-			"requests_per_second": {
-				Type:        schema.TypeSet,
-				Optional:    true,
-				Description: "The number of concurrent requests per second across all Instances of your Service within a region",
-				Elem:        autoScalingTargetValueSchema(),
-				Set:         schema.HashResource(autoScalingTargetValueSchema()),
-			},
-		},
-	}
-}
-
-func scalingSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"scope": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Description: "The regions to apply the scaling configuration",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"min": {
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Default:     1,
-				Description: "The minimal number of instances to use to support your service",
-			},
-			"max": {
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Default:     1,
-				Description: "The maximum number of instance to use to support your service",
-			},
-			"targets": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     autoScalingTargetSchema(),
-				Set:      schema.HashResource(autoScalingTargetSchema()),
-			},
-		},
-	}
 }
 
 func expandScalings(config []interface{}) []koyeb.DeploymentScaling {
@@ -333,12 +814,12 @@ func expandScalings(config []interface{}) []koyeb.DeploymentScaling {
 			Min: toOpt(int64(scaling["min"].(int))),
 		}
 
-		rawScope := scaling["scope"].([]interface{})
-		scope := make([]string, len(rawScope))
-		for i, v := range rawScope {
-			scope[i] = v.(string)
+		rawScopes := scaling["scopes"].([]interface{})
+		scopes := make([]string, len(rawScopes))
+		for i, v := range rawScopes {
+			scopes[i] = v.(string)
 		}
-		s.Scopes = scope
+		s.Scopes = scopes
 
 		targets := scaling["targets"].(*schema.Set).List()
 		for _, rawTarget := range targets {
@@ -379,6 +860,30 @@ func expandScalings(config []interface{}) []koyeb.DeploymentScaling {
 				}
 			}
 
+			if target["concurrent_requests"] != nil {
+				concReq := target["concurrent_requests"].(*schema.Set).List()
+				for _, rawConcReq := range concReq {
+					concReq := rawConcReq.(map[string]interface{})
+					s.Targets = append(s.Targets, koyeb.DeploymentScalingTarget{
+						ConcurrentRequests: &koyeb.DeploymentScalingTargetConcurrentRequests{
+							Value: toOpt(int64(concReq["value"].(int))),
+						},
+					})
+				}
+			}
+
+			if target["request_response_time"] != nil {
+				reqRespTime := target["request_response_time"].(*schema.Set).List()
+				for _, rawReqRespTime := range reqRespTime {
+					reqRespTime := rawReqRespTime.(map[string]interface{})
+					s.Targets = append(s.Targets, koyeb.DeploymentScalingTarget{
+						RequestsResponseTime: &koyeb.DeploymentScalingTargetRequestsResponseTime{
+							Value: toOpt(int64(reqRespTime["value"].(int))),
+						},
+					})
+				}
+			}
+
 		}
 
 		scalings = append(scalings, s)
@@ -387,43 +892,64 @@ func expandScalings(config []interface{}) []koyeb.DeploymentScaling {
 	return scalings
 }
 
-func dockerSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"image": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The Docker image to use to support your service",
-			},
-			"command": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The Docker command to use",
-			},
-			"args": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Description: "The Docker args to use",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"entrypoint": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Description: "The Docker entrypoint to use",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"privileged": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
-			},
-			"image_registry_secret": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The Koyeb secret containing the container registry credentials",
-			},
-		},
+func flattenScalings(scalings *[]koyeb.DeploymentScaling) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(*scalings))
+
+	for i, scaling := range *scalings {
+		r := make(map[string]interface{})
+
+		r["max"] = scaling.GetMax()
+		r["min"] = scaling.GetMin()
+		// r["scopes"] = scaling.GetScopes()
+
+		targets := make([]map[string]interface{}, 0, len(scaling.Targets))
+		for _, target := range scaling.Targets {
+			t := make(map[string]interface{})
+
+			if cpu, ok := target.GetAverageCpuOk(); ok {
+				t["average_cpu"] = []map[string]interface{}{
+					{
+						"value": cpu.GetValue(),
+					},
+				}
+			}
+			if mem, ok := target.GetAverageMemOk(); ok {
+				t["average_mem"] = []map[string]interface{}{
+					{
+						"value": mem.GetValue(),
+					},
+				}
+			}
+			if rps, ok := target.GetRequestsPerSecondOk(); ok {
+				t["requests_per_second"] = []map[string]interface{}{
+					{
+						"value": rps.GetValue(),
+					},
+				}
+			}
+			if concReq, ok := target.GetConcurrentRequestsOk(); ok {
+				t["concurrent_requests"] = []map[string]interface{}{
+					{
+						"value": concReq.GetValue(),
+					},
+				}
+			}
+			if reqRespTime, ok := target.GetRequestsResponseTimeOk(); ok {
+				t["request_response_time"] = []map[string]interface{}{
+					{
+						"value": reqRespTime.GetValue(),
+					},
+				}
+			}
+
+			targets = append(targets, t)
+		}
+		r["targets"] = targets
+
+		result[i] = r
 	}
+
+	return result
 }
 
 func expandDockerSource(config []interface{}) *koyeb.DockerSource {
@@ -476,46 +1002,6 @@ func flattenDocker(dockerSource *koyeb.DockerSource) []interface{} {
 	result = append(result, r)
 
 	return result
-}
-
-func dockerBuilderSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"dockerfile": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The location of your Dockerfile relative to the work directory. If not set, the work directory defaults to the root of the repository.",
-			},
-			"entrypoint": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Description: "Override the default entrypoint to execute on the container",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"command": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Override the command to execute on the container",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"args": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Description: "The arguments to pass to the Docker command",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"target": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "Target build stage: If your Dockerfile contains multi-stage builds, you can choose the target stage to build and deploy by entering its name",
-			},
-			"privileged": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
-			},
-		},
-	}
 }
 
 func expandDockerBuilder(config []interface{}) *koyeb.DockerBuilder {
@@ -571,28 +1057,6 @@ func flattenDockerBuilder(dockerBuilderSource *koyeb.DockerBuilder) []interface{
 	return result
 }
 
-func buildpackBuilderSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"build_command": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The command to build your application during the build phase. If your application does not require a build command, leave this field empty",
-			},
-			"run_command": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The command to run your application once the built is completed",
-			},
-			"privileged": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.",
-			},
-		},
-	}
-}
-
 func expandBuildpackBuilder(config []interface{}) *koyeb.BuildpackBuilder {
 	rawBuildpackBuilderSource := config[0].(map[string]interface{})
 
@@ -617,54 +1081,13 @@ func flattenBuildpackBuilder(buildpackBuilderSource *koyeb.BuildpackBuilder) []i
 	result := make([]interface{}, 0)
 
 	r := make(map[string]interface{})
-	r["build_command"] = buildpackBuilderSource.BuildCommand
-	r["run_command"] = buildpackBuilderSource.RunCommand
-	r["privileged"] = buildpackBuilderSource.Privileged
+	r["build_command"] = buildpackBuilderSource.GetBuildCommand()
+	r["run_command"] = buildpackBuilderSource.GetRunCommand()
+	r["privileged"] = buildpackBuilderSource.GetPrivileged()
 
 	result = append(result, r)
 
 	return result
-}
-
-func gitSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"repository": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The GitHub repository to deploy",
-			},
-			"branch": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The GitHub branch to deploy",
-			},
-			"workdir": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The directory where your source code is located. If not set, the work directory defaults to the root of the repository.",
-			},
-			"buildpack": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     buildpackBuilderSchema(),
-				Set:      schema.HashResource(buildpackBuilderSchema()),
-				MaxItems: 1,
-			},
-			"dockerfile": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     dockerBuilderSchema(),
-				Set:      schema.HashResource(dockerBuilderSchema()),
-				MaxItems: 1,
-			},
-			"no_deploy_on_push": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch",
-			},
-		},
-	}
 }
 
 func expandGitSource(config []interface{}) *koyeb.GitSource {
@@ -681,8 +1104,6 @@ func expandGitSource(config []interface{}) *koyeb.GitSource {
 		gitSource.Docker = expandDockerBuilder(rawGitSource["dockerfile"].(*schema.Set).List())
 	} else if rawGitSource["buildpack"] != nil && rawGitSource["buildpack"].(*schema.Set).Len() > 0 {
 		gitSource.Buildpack = expandBuildpackBuilder(rawGitSource["buildpack"].(*schema.Set).List())
-	} else {
-		gitSource.Buildpack = expandBuildpackBuilder([]interface{}{map[string]interface{}{}})
 	}
 
 	return gitSource
@@ -692,116 +1113,20 @@ func flattenGit(gitSource *koyeb.GitSource) []interface{} {
 	result := make([]interface{}, 0)
 
 	r := make(map[string]interface{})
-	r["repository"] = gitSource.Repository
-	r["branch"] = gitSource.Branch
-	r["workdir"] = gitSource.Workdir
-	r["no_deploy_on_push"] = gitSource.NoDeployOnPush
-	r["buildpack"] = flattenBuildpackBuilder(gitSource.Buildpack)
-	r["dockerfile"] = flattenDockerBuilder(gitSource.Docker)
+	r["repository"] = gitSource.GetRepository()
+	r["branch"] = gitSource.GetBranch()
+	r["workdir"] = gitSource.GetWorkdir()
+	r["no_deploy_on_push"] = gitSource.GetNoDeployOnPush()
+	if buildpack, ok := gitSource.GetBuildpackOk(); ok {
+		r["buildpack"] = flattenBuildpackBuilder(buildpack)
+	}
+	if docker, ok := gitSource.GetDockerOk(); ok {
+		r["dockerfile"] = flattenDockerBuilder(docker)
+	}
 
 	result = append(result, r)
 
 	return result
-}
-
-func TCPHealthCheckSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"port": {
-				Type:         schema.TypeInt,
-				Required:     true,
-				Description:  "The port to use to perform the health check",
-				ValidateFunc: validation.IntBetween(1, 65535),
-			},
-		},
-	}
-}
-
-func HTTPHealthCheckHeaderSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"key": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The name of the header",
-			},
-			"value": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "The value of the header",
-			},
-		},
-	}
-}
-
-func HTTPHealthCheckSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"port": {
-				Type:         schema.TypeInt,
-				Required:     true,
-				Description:  "The port to use to perform the health check",
-				ValidateFunc: validation.IntBetween(1, 65535),
-			},
-			"path": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The path to use to perform the HTTP health check",
-			},
-			"method": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Description: "An optional HTTP method to use to perform the health check, default is GET",
-			},
-			"headers": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     HTTPHealthCheckHeaderSchema(),
-				Set:      schema.HashResource(HTTPHealthCheckHeaderSchema()),
-			},
-		},
-	}
-}
-
-func healthCheckSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"grace_period": {
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Description: "The period in seconds to wait for the instance to become healthy, default is 5s",
-			},
-			"interval": {
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Description: "The period in seconds between two health checks, default is 60s",
-			},
-			"restart_limit": {
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Description: "The number of consecutive failures before attempting to restart the service, default is 3",
-			},
-			"timeout": {
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Description: "The maximum time to wait in seconds before considering the check as a failure, default is 5s",
-			},
-			"tcp": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     TCPHealthCheckSchema(),
-				Set:      schema.HashResource(TCPHealthCheckSchema()),
-				MaxItems: 1,
-			},
-			"http": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     HTTPHealthCheckSchema(),
-				Set:      schema.HashResource(HTTPHealthCheckSchema()),
-				MaxItems: 1,
-			},
-		},
-	}
 }
 
 func expandHealthChecks(config []interface{}) []koyeb.DeploymentHealthCheck {
@@ -862,32 +1187,70 @@ func expandHealthChecks(config []interface{}) []koyeb.DeploymentHealthCheck {
 	return healthChecks
 }
 
-func serviceVolumeSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"scope": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Description: "The regions to apply the scaling configuration",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"id": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The volume ID to mount to the service",
-			},
-			"path": {
-				Type:        schema.TypeString,
-				Required:    true,
-				Description: "The path where to mount the volume",
-			},
-			"replica_index": {
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Description: "Explicitly specify the replica index to mount the volume to",
-			},
-		},
+func flattenHTTPHealthCheckHeaders(headers []koyeb.HTTPHeader) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(headers))
+
+	for i, header := range headers {
+		r := make(map[string]interface{})
+
+		r["key"] = header.GetKey()
+		r["value"] = header.GetValue()
+
+		result[i] = r
 	}
+
+	return result
+}
+
+func flattenHealthChecks(healthChecks *[]koyeb.DeploymentHealthCheck) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(*healthChecks))
+
+	for i, check := range *healthChecks {
+		r := make(map[string]interface{})
+
+		r["grace_period"] = check.GetGracePeriod()
+		r["interval"] = check.GetInterval()
+		r["restart_limit"] = check.GetRestartLimit()
+		r["timeout"] = check.GetTimeout()
+
+		if tcp, ok := check.GetTcpOk(); ok {
+			tcpEntry := map[string]interface{}{
+				"port": int(tcp.GetPort()),
+			}
+
+			r["tcp"] = schema.NewSet(
+				schema.HashResource(TCPHealthCheckSchema()),
+				[]interface{}{tcpEntry},
+			)
+		}
+
+		if http, ok := check.GetHttpOk(); ok {
+			httpEntry := map[string]interface{}{
+				"port":   int(http.GetPort()),
+				"path":   http.GetPath(),
+				"method": http.GetMethod(),
+			}
+
+			headers := flattenHTTPHealthCheckHeaders(http.GetHeaders())
+			var headerInterfaces []interface{}
+			for _, header := range headers {
+				headerInterfaces = append(headerInterfaces, header)
+			}
+
+			httpEntry["headers"] = schema.NewSet(
+				schema.HashResource(HTTPHealthCheckHeaderSchema()),
+				headerInterfaces,
+			)
+
+			r["http"] = schema.NewSet(
+				schema.HashResource(HTTPHealthCheckSchema()),
+				[]interface{}{httpEntry},
+			)
+		}
+		result[i] = r
+	}
+
+	return result
 }
 
 func expandVolumes(config []interface{}) []koyeb.DeploymentVolume {
@@ -902,12 +1265,12 @@ func expandVolumes(config []interface{}) []koyeb.DeploymentVolume {
 			ReplicaIndex: toOpt(int64(volume["replica_index"].(int))),
 		}
 
-		rawScope := volume["scope"].([]interface{})
-		scope := make([]string, len(rawScope))
-		for i, v := range rawScope {
-			scope[i] = v.(string)
+		rawScopes := volume["scopes"].([]interface{})
+		scopes := make([]string, len(rawScopes))
+		for i, v := range rawScopes {
+			scopes[i] = v.(string)
 		}
-		v.Scopes = scope
+		v.Scopes = scopes
 
 		volumes = append(volumes, v)
 	}
@@ -915,98 +1278,21 @@ func expandVolumes(config []interface{}) []koyeb.DeploymentVolume {
 	return volumes
 }
 
-func deploymentDefinitionSchena() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"name": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ForceNew:     true,
-				Description:  "The service name",
-				ValidateFunc: validation.StringLenBetween(3, 64),
-				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-					return strings.EqualFold(old, new)
-				},
-			},
-			"type": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "WEB",
-				Description:  "The service type, either WEB or WORKER (default WEB)",
-				ValidateFunc: validation.StringInSlice([]string{"WEB", "WORKER"}, false),
-			},
-			"docker": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     dockerSchema(),
-				Set:      schema.HashResource(dockerSchema()),
-				MaxItems: 1,
-			},
-			"git": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     gitSchema(),
-				Set:      schema.HashResource(gitSchema()),
-				MaxItems: 1,
-			},
-			"env": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     envSchema(),
-				Set:      schema.HashResource(envSchema()),
-			},
-			"ports": {
-				Type:     schema.TypeSet,
-				Required: true,
-				Elem:     portSchema(),
-				Set:      schema.HashResource(portSchema()),
-			},
-			"skip_cache": {
-				Type:        schema.TypeBool,
-				Optional:    true,
-				Description: "If set to true, the service will be deployed without using the cache",
-			},
-			"health_checks": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     healthCheckSchema(),
-				Set:      schema.HashResource(healthCheckSchema()),
-			},
-			"routes": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Elem:     routeSchema(),
-				Set:      schema.HashResource(routeSchema()),
-			},
-			"instance_types": {
-				Type:     schema.TypeSet,
-				Required: true,
-				MinItems: 1,
-				Elem:     instanceTypeSchema(),
-				Set:      schema.HashResource(instanceTypeSchema()),
-			},
-			"scalings": {
-				Type:     schema.TypeSet,
-				Required: true,
-				MinItems: 1,
-				Elem:     scalingSchema(),
-				Set:      schema.HashResource(scalingSchema()),
-			},
-			"regions": {
-				Type:        schema.TypeSet,
-				Required:    true,
-				Description: "The service deployment regions to deploy to",
-				Elem:        &schema.Schema{Type: schema.TypeString},
-			},
-			"volumes": {
-				Type:        schema.TypeSet,
-				Optional:    true,
-				Description: "The volumes to attach and mount to the service",
-				Elem:        serviceVolumeSchema(),
-				Set:         schema.HashResource(serviceVolumeSchema()),
-			},
-		},
+func flattenVolumes(volumes *[]koyeb.DeploymentVolume) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(*volumes))
+
+	for i, volume := range *volumes {
+		r := make(map[string]interface{})
+
+		r["id"] = volume.GetId()
+		r["path"] = volume.GetPath()
+		r["replica_index"] = volume.GetReplicaIndex()
+		// r["scopes"] = volume.GetScopes()
+
+		result[i] = r
 	}
+
+	return result
 }
 
 func expandRegions(regions []interface{}) []string {
@@ -1032,6 +1318,7 @@ func expandDeploymentDefinition(configmap map[string]interface{}) *koyeb.Deploym
 
 	deploymentDefinition := &koyeb.DeploymentDefinition{
 		Name:          toOpt(rawDeploymentDefinition["name"].(string)),
+		Type:          toOpt(koyeb.DeploymentDefinitionType(rawDeploymentDefinition["type"].(string))),
 		Env:           expandEnvs(rawDeploymentDefinition["env"].(*schema.Set).List()),
 		Ports:         expandPorts(rawDeploymentDefinition["ports"].(*schema.Set).List()),
 		Routes:        expandRoutes(rawDeploymentDefinition["routes"].(*schema.Set).List()),
@@ -1059,222 +1346,27 @@ func flattenDeploymentDefinition(deployment *koyeb.DeploymentDefinition) []inter
 	result := make([]interface{}, 0)
 
 	r := make(map[string]interface{})
-	r["name"] = deployment.Name
-	r["docker"] = flattenDocker(deployment.Docker)
-	r["git"] = flattenGit(deployment.Git)
-	r["env"] = flattenEnvs(&deployment.Env)
-	r["ports"] = flattenPorts(&deployment.Ports)
-	r["routes"] = flattenRoutes(&deployment.Routes)
-	r["instance_types"] = flattenInstanceTypes(&deployment.InstanceTypes)
-	// r["scalings"] = flattenScalings(&deployment.Scalings)
+	r["name"] = deployment.GetName()
+	r["type"] = deployment.GetType()
+	if docker, ok := deployment.GetDockerOk(); ok && docker != nil {
+		r["docker"] = flattenDocker(docker)
+	}
+	if git, ok := deployment.GetGitOk(); ok && git != nil {
+		r["git"] = flattenGit(git)
+	}
+	r["env"] = flattenEnvs(toOpt(deployment.GetEnv()))
+	r["ports"] = flattenPorts(toOpt(deployment.GetPorts()))
+	r["skip_cache"] = deployment.GetSkipCache()
+	if check, ok := deployment.GetHealthChecksOk(); ok {
+		r["health_checks"] = flattenHealthChecks(toOpt(check))
+	}
+	r["routes"] = flattenRoutes(toOpt(deployment.GetRoutes()))
+	r["instance_types"] = flattenInstanceTypes(toOpt(deployment.GetInstanceTypes()))
+	r["scalings"] = flattenScalings(toOpt(deployment.GetScalings()))
 	r["regions"] = flattenRegions(&deployment.Regions)
+	r["volumes"] = flattenVolumes(&deployment.Volumes)
 
 	result = append(result, r)
-
-	return result
-}
-
-func deploymentSchema() *schema.Resource {
-	return &schema.Resource{
-		Schema: map[string]*schema.Schema{
-			"definition": {
-				Type:        schema.TypeList,
-				MinItems:    1,
-				MaxItems:    1,
-				Required:    true,
-				Description: "The service deployment definition",
-				Elem:        deploymentDefinitionSchena(),
-			},
-			"version": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The version of the service",
-			},
-			"status": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The status of the service",
-			},
-			"messages": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Optional:    true,
-				Description: "The status messages of the service",
-			},
-			"child_id": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The date and time of when the service was last updated",
-			},
-			"parent_id": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The date and time of when the service was last updated",
-			},
-			"terminated_at": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The date and time of when the service was last updated",
-			},
-			"succeeded_at": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The date and time of when the service was last updated",
-			},
-			"started_at": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The date and time of when the service was last updated",
-			},
-			"allocated_at": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The date and time of when the service was created",
-			},
-			"updated_at": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The date and time of when the service was last updated",
-			},
-			"created_at": {
-				Type:        schema.TypeString,
-				Computed:    true,
-				Description: "The date and time of when the service was created",
-			},
-		},
-	}
-}
-
-func flattenDeployment(deployment *koyeb.Deployment) []interface{} {
-	result := make([]interface{}, 0)
-
-	r := make(map[string]interface{})
-	r["id"] = deployment.GetId()
-	r["definition"] = flattenDeploymentDefinition(deployment.Definition)
-	r["version"] = deployment.GetVersion()
-	r["status"] = deployment.GetStatus()
-	r["messages"] = strings.Join(deployment.GetMessages(), " ")
-	r["child_id"] = deployment.GetChildId()
-	r["parent_id"] = deployment.GetParentId()
-	r["terminated_at"] = deployment.GetTerminatedAt().UTC().String()
-	r["succeeded_at"] = deployment.GetSucceededAt().UTC().String()
-	r["started_at"] = deployment.GetStartedAt().UTC().String()
-	r["allocated_at"] = deployment.GetAllocatedAt().UTC().String()
-	r["updated_at"] = deployment.GetUpdatedAt().UTC().String()
-	r["created_at"] = deployment.GetCreatedAt().UTC().String()
-
-	result = append(result, r)
-
-	return result
-}
-
-func serviceSchema() map[string]*schema.Schema {
-	service := map[string]*schema.Schema{
-		"id": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The service ID",
-		},
-		"name": {
-			Type:        schema.TypeString,
-			Description: "The service name",
-			Computed:    true,
-		},
-		"app_name": {
-			Type:         schema.TypeString,
-			Required:     true,
-			ForceNew:     true,
-			Description:  "The app name the service is assigned to",
-			ValidateFunc: validation.StringLenBetween(3, 23),
-		},
-		"app_id": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The app id the service is assigned to",
-		},
-		"definition": {
-			Type:        schema.TypeList,
-			MinItems:    1,
-			MaxItems:    1,
-			Required:    true,
-			Description: "The service deployment definition",
-			Elem:        deploymentDefinitionSchena(),
-		},
-		"organization_id": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The organization ID owning the service",
-			// Elem:        deploymentSchema(),
-		},
-		"active_deployment": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The service active deployment ID",
-			// Elem:        deploymentSchema(),
-		},
-		"latest_deployment": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The service latest deployment ID",
-			// Elem:        deploymentSchema(),
-		},
-		"version": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The version of the service",
-		},
-		"status": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The status of the service",
-		},
-		"messages": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Optional:    true,
-			Description: "The status messages of the service",
-		},
-		"paused_at": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The date and time of when the service was last updated",
-		},
-		"resumed_at": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The date and time of when the service was last updated",
-		},
-		"terminated_at": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The date and time of when the service was last updated",
-		},
-		"updated_at": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The date and time of when the service was last updated",
-		},
-		"created_at": {
-			Type:        schema.TypeString,
-			Computed:    true,
-			Description: "The date and time of when the service was created",
-		},
-	}
-
-	return service
-}
-
-func flattenService(service *koyeb.Service) []interface{} {
-	result := make([]interface{}, 0)
-
-	r := make(map[string]interface{})
-	r["id"] = service.GetId()
-	r["name"] = service.GetName()
-	r["paused_at"] = service.GetCreatedAt().UTC().String()
-	r["resumed_at"] = service.GetCreatedAt().UTC().String()
-	r["terminated_at"] = service.GetCreatedAt().UTC().String()
-	r["created_at"] = service.GetCreatedAt().UTC().String()
-	r["updated_at"] = service.GetUpdatedAt().UTC().String()
 
 	return result
 }
@@ -1289,6 +1381,10 @@ func resourceKoyebService() *schema.Resource {
 		UpdateContext: resourceKoyebServiceUpdate,
 		DeleteContext: resourceKoyebServiceDelete,
 
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
+
 		Schema: serviceSchema(),
 	}
 }
@@ -1296,32 +1392,23 @@ func resourceKoyebService() *schema.Resource {
 func setServiceAttribute(
 	d *schema.ResourceData,
 	service *koyeb.Service,
-	// activeDeployment *koyeb.Deployment,
-	// latestDeployment *koyeb.Deployment,
+	latestDeployment *koyeb.Deployment,
 ) error {
 	d.SetId(service.GetId())
-	d.Set("id", service.GetId())
 	d.Set("name", service.GetName())
 	d.Set("app_id", service.GetAppId())
+	d.Set("definition", flattenDeploymentDefinition(toOpt(latestDeployment.GetDefinition())))
+	d.Set("organization_id", service.GetOrganizationId())
+	d.Set("active_deployment", service.GetActiveDeploymentId())
+	d.Set("latest_deployment", service.GetLatestDeploymentId())
 	d.Set("version", service.GetVersion())
 	d.Set("status", service.GetStatus())
 	d.Set("messages", strings.Join(service.GetMessages(), " "))
 	d.Set("paused_at", service.GetPausedAt().UTC().String())
 	d.Set("resumed_at", service.GetResumedAt().UTC().String())
 	d.Set("terminated_at", service.GetTerminatedAt().UTC().String())
-	d.Set("created_at", service.GetCreatedAt().UTC().String())
 	d.Set("updated_at", service.GetUpdatedAt().UTC().String())
-	d.Set("latest_deployment", service.GetLatestDeploymentId())
-	d.Set("active_deployment", service.GetActiveDeploymentId())
-	d.Set("organization_id", service.GetOrganizationId())
-
-	// if _, ok := activeDeployment.GetIdOk(); ok {
-	// 	d.Set("active_deployment", flattenDeployment(activeDeployment))
-	// }
-
-	// if _, ok := latestDeployment.GetIdOk(); ok {
-	// 	d.Set("latest_deployment", flattenDeployment(latestDeployment))
-	// }
+	d.Set("created_at", service.GetCreatedAt().UTC().String())
 
 	return nil
 }
@@ -1334,7 +1421,6 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 
 	if d.Get("app_name").(string) != "" {
 		id, err := appMapper.ResolveID(d.Get("app_name").(string))
-
 		if err != nil {
 			return diag.Errorf("Error creating service: %s", err)
 		}
@@ -1360,10 +1446,20 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 
 func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	// var activeDeployment *koyeb.Deployment
-	// var latestDeployment *koyeb.Deployment
+	mapper := idmapper.NewMapper(context.Background(), client)
+	serviceMapper := mapper.Service()
+	var serviceId string
 
-	res, resp, err := client.ServicesApi.GetService(context.Background(), d.Id()).Execute()
+	if d.Id() != "" {
+		id, err := serviceMapper.ResolveID(d.Id())
+		if err != nil {
+			return diag.Errorf("Error retrieving service: %s", err)
+		}
+
+		serviceId = id
+	}
+
+	serviceRes, resp, err := client.ServicesApi.GetService(context.Background(), serviceId).Execute()
 	if err != nil {
 		// If the service is somehow already destroyed, mark as
 		// successfully gone
@@ -1372,32 +1468,15 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 			return nil
 		}
 
-		return diag.Errorf("Error retrieving service: %s (%v %v)", err, resp, res)
+		return diag.Errorf("Error retrieving service: %s (%v %v)", err, resp, serviceRes)
 	}
 
-	// if activeDeploymentId, ok := res.Service.GetActiveDeploymentIdOk(); ok {
-	// 	res, resp, err := client.DeploymentsApi.GetDeployment(ctx, *activeDeploymentId).Execute()
-	// 	if err != nil {
-	// 		return diag.Errorf("Error retrieving service active deploymen (%s)t:  (%v %v)", *activeDeploymentId, err, resp, res)
-	// 	}
-
-	// 	activeDeployment = res.Deployment
-	// }
-
-	// if latestDeploymentId, ok := res.Service.GetLatestDeploymentIdOk(); ok {
-	// 	res, resp, err := client.DeploymentsApi.GetDeployment(ctx, *latestDeploymentId).Execute()
-	// 	if err != nil {
-	// 		return diag.Errorf("Error retrieving service active deployment: %s (%v %v", err, resp, res)
-	// 	}
-
-	// 	latestDeployment = res.Deployment
-	// }
-
-	// err = setServiceAttribute(d, res.Service, activeDeployment, latestDeployment)
-	err = setServiceAttribute(d, res.Service)
+	deploymentRes, resp, err := client.DeploymentsApi.GetDeployment(context.Background(), *serviceRes.Service.LatestDeploymentId).Execute()
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.Errorf("Error retrieving service latest deployment: %s (%v %v", err, resp, serviceRes)
 	}
+
+	setServiceAttribute(d, serviceRes.Service, deploymentRes.Deployment)
 
 	return nil
 }
@@ -1410,12 +1489,12 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 	res, resp, err := client.ServicesApi.UpdateService(context.Background(), d.Id()).Service(koyeb.UpdateService{
 		Definition: definition,
 	}).Execute()
-
 	if err != nil {
 		return diag.Errorf("Error updating service: %s (%v %v)", err, resp, res)
 	}
 
 	log.Printf("[INFO] Updated service name: %s", *res.Service.Name)
+
 	return resourceKoyebServiceRead(ctx, d, meta)
 
 }
@@ -1424,7 +1503,6 @@ func resourceKoyebServiceDelete(ctx context.Context, d *schema.ResourceData, met
 	client := meta.(*koyeb.APIClient)
 
 	res, resp, err := client.ServicesApi.DeleteService(context.Background(), d.Id()).Execute()
-
 	if err != nil {
 		return diag.Errorf("Error deleting service: %s (%v %v)", err, resp, res)
 	}

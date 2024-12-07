@@ -28,6 +28,12 @@ func dataSourceKoyebService() *schema.Resource {
 				Description: "The name of the service",
 				Computed:    true,
 			},
+			"definition": {
+				Type:        schema.TypeList,
+				Computed:    true,
+				Description: "The service deployment definition",
+				Elem:        deploymentDefinitionSchena(),
+			},
 			"app_id": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -37,19 +43,16 @@ func dataSourceKoyebService() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 				Description: "The organization id owning the service",
-				// Elem:        deploymentSchema(),
 			},
 			"active_deployment": {
 				Type:        schema.TypeString,
 				Computed:    true,
 				Description: "The service active deployment id",
-				// Elem:        deploymentSchema(),
 			},
 			"latest_deployment": {
 				Type:        schema.TypeString,
 				Computed:    true,
 				Description: "The service latest deployment id",
-				// Elem:        deploymentSchema(),
 			},
 			"version": {
 				Type:        schema.TypeString,
