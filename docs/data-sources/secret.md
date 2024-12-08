@@ -27,12 +27,12 @@ data "koyeb_secret" "my-secret" {
 
 ### Optional
 
-- `azure_container_registry` (Block Set, Max: 1) The Azure registry configuration to use (see [below for nested schema](#nestedblock--azure_container_registry))
-- `digital_ocean_container_registry` (Block Set, Max: 1) The DigitalOcean registry configuration to use (see [below for nested schema](#nestedblock--digital_ocean_container_registry))
-- `docker_hub_registry` (Block Set, Max: 1) The DockerHub registry configuration to use (see [below for nested schema](#nestedblock--docker_hub_registry))
-- `github_registry` (Block Set, Max: 1) The GitHub registry configuration to use (see [below for nested schema](#nestedblock--github_registry))
-- `gitlab_registry` (Block Set, Max: 1) The GitLab registry configuration to use (see [below for nested schema](#nestedblock--gitlab_registry))
-- `private_registry` (Block Set, Max: 1) The DigitalOcean registry configuration to use (see [below for nested schema](#nestedblock--private_registry))
+- `azure_container_registry` (Block Set, Max: 1) The azure_container_registry configuration to use (see [below for nested schema](#nestedblock--azure_container_registry))
+- `digital_ocean_container_registry` (Block Set, Max: 1) The digital_ocean_container_registry configuration to use (see [below for nested schema](#nestedblock--digital_ocean_container_registry))
+- `docker_hub_registry` (Block Set, Max: 1) The docker_hub_registry configuration to use (see [below for nested schema](#nestedblock--docker_hub_registry))
+- `github_registry` (Block Set, Max: 1) The github_registry configuration to use (see [below for nested schema](#nestedblock--github_registry))
+- `gitlab_registry` (Block Set, Max: 1) The gitlab_registry configuration to use (see [below for nested schema](#nestedblock--gitlab_registry))
+- `private_registry` (Block Set, Max: 1) The private_registry configuration to use (see [below for nested schema](#nestedblock--private_registry))
 - `type` (String) The secret type
 - `value` (String, Sensitive) The secret value
 
@@ -95,7 +95,7 @@ Required:
 Required:
 
 - `password` (String, Sensitive) The registry password
-- `url` (String) The registry url
+- `url` (String) The registry URL
 - `username` (String) The registry username
 
 
