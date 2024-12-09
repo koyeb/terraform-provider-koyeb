@@ -76,7 +76,26 @@ func TestAccKoyebService_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config: fmt.Sprintf(testAccCheckKoyebServiceConfig_basic_git, appName, appName),
+				Config: fmt.Sprintf(testAccCheckKoyebServiceConfig_basic_git_buildpack, appName, appName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebServiceExists("koyeb_service.bar", &service),
+					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "service"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "id"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "organization_id"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "updated_at"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "created_at"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "app_id"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "version"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "status"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "messages"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "paused_at"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "resumed_at"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "terminated_at"),
+					resource.TestCheckResourceAttrSet("koyeb_service.bar", "latest_deployment"),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebServiceConfig_basic_git_dockerfile, appName, appName),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckKoyebServiceExists("koyeb_service.bar", &service),
 					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "service"),
@@ -185,7 +204,7 @@ resource "koyeb_service" "bar" {
 			}
 		  }
 		}
-		regions = ["fra"]
+		regions = ["tyo"]
 		docker {
 		  image = "koyeb/demo"
 		}
@@ -196,7 +215,7 @@ resource "koyeb_service" "bar" {
 	]
 }`
 
-const testAccCheckKoyebServiceConfig_basic_git = `
+const testAccCheckKoyebServiceConfig_basic_git_buildpack = `
 resource "koyeb_app" "foo" {
 	name = "%s"
 }
@@ -206,6 +225,7 @@ resource "koyeb_service" "bar" {
 	definition {
 		name = "service"
 		instance_types {
+
 		  type = "micro"
 		}
 		ports {
@@ -225,8 +245,7 @@ resource "koyeb_service" "bar" {
 		  port = 8080
 		}
 		health_checks {
-		  http {
-			path = "/"
+		  tcp {
 			port = 8080
 		  }
 		}
@@ -234,6 +253,42 @@ resource "koyeb_service" "bar" {
 		git {
 		  repository = "github.com/koyeb/example-flask"
 		  branch = "main"
+		  buildpack {}
+		}
+	}
+
+	depends_on = [
+	  koyeb_app.foo
+	]
+}`
+
+const testAccCheckKoyebServiceConfig_basic_git_dockerfile = `
+resource "koyeb_app" "foo" {
+	name = "%s"
+}
+
+resource "koyeb_service" "bar" {
+	app_name = "%s"
+	definition {
+		name = "service"
+		instance_types {
+
+		  type = "micro"
+		}
+		type = "WORKER"
+		scalings {
+		  min = 1
+		  max = 1
+		}
+		env {
+		  key   = "FOO"
+		  value = "BAR"
+		}
+		regions = ["fra", "tyo"]
+		git {
+		  repository = "github.com/koyeb/example-flask"
+		  branch = "main"
+		  dockerfile {}
 		}
 	}
 

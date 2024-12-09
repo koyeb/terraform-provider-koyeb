@@ -87,7 +87,6 @@ Required:
 
 - `instance_types` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--definition--instance_types))
 - `name` (String) The service name
-- `ports` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--definition--ports))
 - `regions` (Set of String) The service deployment regions to deploy to
 - `scalings` (Block Set, Min: 1) (see [below for nested schema](#nestedblock--definition--scalings))
 
@@ -97,6 +96,7 @@ Optional:
 - `env` (Block Set) (see [below for nested schema](#nestedblock--definition--env))
 - `git` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git))
 - `health_checks` (Block Set) (see [below for nested schema](#nestedblock--definition--health_checks))
+- `ports` (Block Set) (see [below for nested schema](#nestedblock--definition--ports))
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
 - `skip_cache` (Boolean) If set to true, the service will be deployed without using the cache
 - `type` (String) The service type, either WEB or WORKER (default WEB)
@@ -111,16 +111,7 @@ Required:
 
 Optional:
 
-- `scope` (List of String) The regions to use the instance type
-
-
-<a id="nestedblock--definition--ports"></a>
-### Nested Schema for `definition.ports`
-
-Required:
-
-- `port` (Number) The internal port on which this service's run command will listen
-- `protocol` (String) The protocol used by your service
+- `scopes` (List of String) The regions to use the instance type
 
 
 <a id="nestedblock--definition--scalings"></a>
@@ -130,7 +121,7 @@ Optional:
 
 - `max` (Number) The maximum number of instance to use to support your service
 - `min` (Number) The minimal number of instances to use to support your service
-- `scope` (List of String) The regions to apply the scaling configuration
+- `scopes` (List of String) The regions to apply the scaling configuration
 - `targets` (Block Set) (see [below for nested schema](#nestedblock--definition--scalings--targets))
 
 <a id="nestedblock--definition--scalings--targets"></a>
@@ -140,6 +131,8 @@ Optional:
 
 - `average_cpu` (Block Set) The CPU usage (expressed as a percentage) across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--average_cpu))
 - `average_mem` (Block Set) The memory usage (expressed as a percentage) across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--average_mem))
+- `concurrent_requests` (Block Set) The number of concurrent requests across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--concurrent_requests))
+- `request_response_time` (Block Set) The average response time of requests across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--request_response_time))
 - `requests_per_second` (Block Set) The number of concurrent requests per second across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--requests_per_second))
 
 <a id="nestedblock--definition--scalings--targets--average_cpu"></a>
@@ -152,6 +145,22 @@ Required:
 
 <a id="nestedblock--definition--scalings--targets--average_mem"></a>
 ### Nested Schema for `definition.scalings.targets.average_mem`
+
+Required:
+
+- `value` (Number) The target value of the autoscaling target
+
+
+<a id="nestedblock--definition--scalings--targets--concurrent_requests"></a>
+### Nested Schema for `definition.scalings.targets.concurrent_requests`
+
+Required:
+
+- `value` (Number) The target value of the autoscaling target
+
+
+<a id="nestedblock--definition--scalings--targets--request_response_time"></a>
+### Nested Schema for `definition.scalings.targets.request_response_time`
 
 Required:
 
@@ -193,7 +202,7 @@ Required:
 
 Optional:
 
-- `scope` (List of String) The regions the environment variable needs to be exposed
+- `scopes` (List of String) The regions the environment variable needs to be exposed
 - `secret` (String, Sensitive) The secret name to use as the value of the environment variable
 - `value` (String) The value of the environment variable
 
@@ -282,6 +291,15 @@ Required:
 
 - `port` (Number) The port to use to perform the health check
 
+
+
+<a id="nestedblock--definition--ports"></a>
+### Nested Schema for `definition.ports`
+
+Required:
+
+- `port` (Number) The internal port on which this service's run command will listen
+- `protocol` (String) The protocol used by your service
 
 
 <a id="nestedblock--definition--routes"></a>
