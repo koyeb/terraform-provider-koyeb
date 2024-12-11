@@ -346,9 +346,9 @@ func envSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
 			"scopes": {
-				Type:        schema.TypeList,
-				Optional:    true,
-				Computed:    true,
+				Type:     schema.TypeList,
+				Optional: true,
+				// Computed:    true,
 				Description: "The regions the environment variable needs to be exposed",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
@@ -387,6 +387,7 @@ func portSchema() *schema.Resource {
 				Description: "The protocol used by your service",
 				ValidateFunc: validation.StringInSlice([]string{
 					"http",
+					"http2",
 					"tcp",
 				}, false),
 			},
@@ -518,7 +519,6 @@ func instanceTypeSchema() *schema.Resource {
 			"scopes": {
 				Type:        schema.TypeList,
 				Optional:    true,
-				Computed:    true,
 				Description: "The regions to use the instance type",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
@@ -537,7 +537,6 @@ func scalingSchema() *schema.Resource {
 			"scopes": {
 				Type:        schema.TypeList,
 				Optional:    true,
-				Computed:    true,
 				Description: "The regions to apply the scaling configuration",
 				Elem:        &schema.Schema{Type: schema.TypeString},
 			},
@@ -771,15 +770,13 @@ func expandInstanceTypes(config []interface{}) []koyeb.DeploymentInstanceType {
 			Type: toOpt(instanceType["type"].(string)),
 		}
 
-		if rawScopes, ok := instanceType["scopes"].([]interface{}); ok && len(rawScopes) > 0 {
-			scopes := make([]string, len(rawScopes))
-
-			for i, v := range rawScopes {
-				scopes[i] = v.(string)
-			}
-
-			r.Scopes = scopes
+		rawScopes := instanceType["scopes"].([]interface{})
+		scopes := make([]string, len(rawScopes))
+		for i, v := range rawScopes {
+			scopes[i] = v.(string)
 		}
+		r.Scopes = scopes
+
 		instanceTypes = append(instanceTypes, r)
 	}
 
@@ -793,9 +790,7 @@ func flattenInstanceTypes(instanceTypes *[]koyeb.DeploymentInstanceType) []map[s
 		r := make(map[string]interface{})
 
 		r["type"] = instanceType.GetType()
-		// if scopes := instanceType.GetScopes(); len(scopes) > 0 {
-		// 	r["scopes"] = scopes
-		// }
+		// r["scopes"] = instanceType.GetScopes()
 
 		result[i] = r
 	}
@@ -902,50 +897,65 @@ func flattenScalings(scalings *[]koyeb.DeploymentScaling) []map[string]interface
 		r["min"] = scaling.GetMin()
 		// r["scopes"] = scaling.GetScopes()
 
-		targets := make([]map[string]interface{}, 0, len(scaling.Targets))
+		targetMap := make(map[string]interface{})
 		for _, target := range scaling.Targets {
-			t := make(map[string]interface{})
 
 			if cpu, ok := target.GetAverageCpuOk(); ok {
-				t["average_cpu"] = []map[string]interface{}{
-					{
-						"value": cpu.GetValue(),
+				targetMap["average_cpu"] = schema.NewSet(
+					schema.HashResource(autoScalingTargetValueSchema()),
+					[]interface{}{
+						map[string]interface{}{
+							"value": int(cpu.GetValue()),
+						},
 					},
-				}
+				)
 			}
 			if mem, ok := target.GetAverageMemOk(); ok {
-				t["average_mem"] = []map[string]interface{}{
-					{
-						"value": mem.GetValue(),
+				targetMap["average_mem"] = schema.NewSet(
+					schema.HashResource(autoScalingTargetValueSchema()),
+					[]interface{}{
+						map[string]interface{}{
+							"value": int(mem.GetValue()),
+						},
 					},
-				}
+				)
 			}
 			if rps, ok := target.GetRequestsPerSecondOk(); ok {
-				t["requests_per_second"] = []map[string]interface{}{
-					{
-						"value": rps.GetValue(),
+				targetMap["requests_per_second"] = schema.NewSet(
+					schema.HashResource(autoScalingTargetValueSchema()),
+					[]interface{}{
+						map[string]interface{}{
+							"value": int(rps.GetValue()),
+						},
 					},
-				}
+				)
 			}
 			if concReq, ok := target.GetConcurrentRequestsOk(); ok {
-				t["concurrent_requests"] = []map[string]interface{}{
-					{
-						"value": concReq.GetValue(),
+				targetMap["concurrent_requests"] = schema.NewSet(
+					schema.HashResource(autoScalingTargetValueSchema()),
+					[]interface{}{
+						map[string]interface{}{
+							"value": int(concReq.GetValue()),
+						},
 					},
-				}
+				)
 			}
 			if reqRespTime, ok := target.GetRequestsResponseTimeOk(); ok {
-				t["request_response_time"] = []map[string]interface{}{
-					{
-						"value": reqRespTime.GetValue(),
+				targetMap["request_response_time"] = schema.NewSet(
+					schema.HashResource(autoScalingTargetValueSchema()),
+					[]interface{}{
+						map[string]interface{}{
+							"value": int(reqRespTime.GetValue()),
+						},
 					},
-				}
+				)
 			}
 
-			targets = append(targets, t)
 		}
-		r["targets"] = targets
-
+		r["targets"] = schema.NewSet(
+			schema.HashResource(autoScalingTargetSchema()),
+			[]interface{}{targetMap},
+		)
 		result[i] = r
 	}
 
@@ -1485,7 +1495,6 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 	client := meta.(*koyeb.APIClient)
 
 	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
-
 	res, resp, err := client.ServicesApi.UpdateService(context.Background(), d.Id()).Service(koyeb.UpdateService{
 		Definition: definition,
 	}).Execute()
