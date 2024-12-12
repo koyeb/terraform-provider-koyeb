@@ -1402,12 +1402,12 @@ func resourceKoyebService() *schema.Resource {
 func setServiceAttribute(
 	d *schema.ResourceData,
 	service *koyeb.Service,
-	latestDeployment *koyeb.Deployment,
+	// latestDeployment *koyeb.Deployment,
 ) error {
 	d.SetId(service.GetId())
 	d.Set("name", service.GetName())
 	d.Set("app_id", service.GetAppId())
-	d.Set("definition", flattenDeploymentDefinition(toOpt(latestDeployment.GetDefinition())))
+	// d.Set("definition", flattenDeploymentDefinition(toOpt(latestDeployment.GetDefinition())))
 	d.Set("organization_id", service.GetOrganizationId())
 	d.Set("active_deployment", service.GetActiveDeploymentId())
 	d.Set("latest_deployment", service.GetLatestDeploymentId())
@@ -1481,12 +1481,12 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 		return diag.Errorf("Error retrieving service: %s (%v %v)", err, resp, serviceRes)
 	}
 
-	deploymentRes, resp, err := client.DeploymentsApi.GetDeployment(context.Background(), *serviceRes.Service.LatestDeploymentId).Execute()
-	if err != nil {
-		return diag.Errorf("Error retrieving service latest deployment: %s (%v %v", err, resp, serviceRes)
-	}
+	// deploymentRes, resp, err := client.DeploymentsApi.GetDeployment(context.Background(), *serviceRes.Service.LatestDeploymentId).Execute()
+	// if err != nil {
+	// 	return diag.Errorf("Error retrieving service latest deployment: %s (%v %v", err, resp, serviceRes)
+	// }
 
-	setServiceAttribute(d, serviceRes.Service, deploymentRes.Deployment)
+	setServiceAttribute(d, serviceRes.Service)
 
 	return nil
 }
