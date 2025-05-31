@@ -1275,10 +1275,12 @@ func expandVolumes(config []interface{}) []koyeb.DeploymentVolume {
 			ReplicaIndex: toOpt(int64(volume["replica_index"].(int))),
 		}
 
-		rawScopes := volume["scopes"].([]interface{})
-		scopes := make([]string, len(rawScopes))
-		for i, v := range rawScopes {
-			scopes[i] = v.(string)
+		var scopes []string
+		if rawScopes, ok := volume["scopes"].([]interface{}); ok && rawScopes != nil {
+			scopes = make([]string, len(rawScopes))
+			for i, v := range rawScopes {
+				scopes[i] = v.(string)
+			}
 		}
 		v.Scopes = scopes
 
