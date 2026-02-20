@@ -600,6 +600,13 @@ func autoScalingTargetSchema() *schema.Resource {
 				Elem:        autoScalingTargetValueSchema(),
 				Set:         schema.HashResource(autoScalingTargetValueSchema()),
 			},
+			"sleep_idle_delay": {
+				Type:        schema.TypeSet,
+				Optional:    true,
+				Description: "The delay in seconds after which a service that has received no requests is scaled to zero. Required when min is set to 0 (scale-to-zero).",
+				Elem:        autoScalingTargetValueSchema(),
+				Set:         schema.HashResource(autoScalingTargetValueSchema()),
+			},
 		},
 	}
 }
@@ -879,6 +886,18 @@ func expandScalings(config []interface{}) []koyeb.DeploymentScaling {
 				}
 			}
 
+			if target["sleep_idle_delay"] != nil {
+				sleepIdleDelay := target["sleep_idle_delay"].(*schema.Set).List()
+				for _, rawSleepIdleDelay := range sleepIdleDelay {
+					sleepIdleDelay := rawSleepIdleDelay.(map[string]interface{})
+					s.Targets = append(s.Targets, koyeb.DeploymentScalingTarget{
+						SleepIdleDelay: &koyeb.DeploymentScalingTargetSleepIdleDelay{
+							Value: toOpt(int64(sleepIdleDelay["value"].(int))),
+						},
+					})
+				}
+			}
+
 		}
 
 		scalings = append(scalings, s)
@@ -946,6 +965,16 @@ func flattenScalings(scalings *[]koyeb.DeploymentScaling) []map[string]interface
 					[]interface{}{
 						map[string]interface{}{
 							"value": int(reqRespTime.GetValue()),
+						},
+					},
+				)
+			}
+			if sleepIdleDelay, ok := target.GetSleepIdleDelayOk(); ok {
+				targetMap["sleep_idle_delay"] = schema.NewSet(
+					schema.HashResource(autoScalingTargetValueSchema()),
+					[]interface{}{
+						map[string]interface{}{
+							"value": int(sleepIdleDelay.GetValue()),
 						},
 					},
 				)
