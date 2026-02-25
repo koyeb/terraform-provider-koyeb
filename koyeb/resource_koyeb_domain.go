@@ -137,6 +137,10 @@ func resourceKoyebDomain() *schema.Resource {
 		UpdateContext: resourceKoyebDomainUpdate,
 		DeleteContext: resourceKoyebDomainDelete,
 
+		Importer: &schema.ResourceImporter{
+			StateContext: schema.ImportStatePassthroughContext,
+		},
+
 		Schema: domainSchema(),
 	}
 }
