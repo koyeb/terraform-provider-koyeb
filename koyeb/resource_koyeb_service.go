@@ -1481,12 +1481,16 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 		return diag.Errorf("Error retrieving service: %s (%v %v)", err, resp, serviceRes)
 	}
 
-	// deploymentRes, resp, err := client.DeploymentsApi.GetDeployment(context.Background(), *serviceRes.Service.LatestDeploymentId).Execute()
-	// if err != nil {
-	// 	return diag.Errorf("Error retrieving service latest deployment: %s (%v %v", err, resp, serviceRes)
-	// }
-
 	setServiceAttribute(d, serviceRes.Service)
+
+	// Populate app_name from app_id to prevent ForceNew on import
+	if appId := serviceRes.Service.GetAppId(); appId != "" {
+		appRes, resp, err := client.AppsApi.GetApp(context.Background(), appId).Execute()
+		if err != nil {
+			return diag.Errorf("Error retrieving app for service: %s (%v %v)", err, resp, appRes)
+		}
+		d.Set("app_name", appRes.App.GetName())
+	}
 
 	return nil
 }
