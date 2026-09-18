@@ -44,7 +44,9 @@ func randomName(prefix string, length int) string {
 
 func testAccPreCheck(t *testing.T) {
 	if v := os.Getenv("KOYEB_TOKEN"); v == "" {
-		t.Fatal("KOYEB_TOKEN must be set for acceptance tests")
+		// Fork PRs get no secrets, so CI cannot run ACC tests there;
+		// skipping keeps the suite meaningful without credentials.
+		t.Skip("KOYEB_TOKEN must be set for acceptance tests")
 	}
 
 	err := testAccProvider.Configure(context.Background(), terraform.NewResourceConfigRaw(nil))

@@ -48,6 +48,11 @@ jobs:
         with:
           go-version-file: "go.mod"
           cache: true
+      # `go generate ./...` runs `terraform fmt -recursive ./examples/` (see
+      # the go:generate directives in main.go), which requires terraform.
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
       - run: go generate ./...
       - name: git diff
         run: |

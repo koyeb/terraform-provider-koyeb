@@ -1,0 +1,64 @@
+# Acceptance tests on explicit maintainer request.
+#
+# Fork PRs never receive repo secrets on pull_request events (GitHub
+# platform rule), so the Tests workflow runs the acceptance suite in
+# skip mode there. A maintainer comments "/test" on a PR to run the
+# real suite here instead: this workflow runs in the base repo
+# context, where secrets exist, against the PR head.
+name: ACC
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: acc-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  acc:
+    if: >
+      github.event.issue.pull_request &&
+      github.event.issue.state == 'open' &&
+      github.event.comment.body == '/test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Runs before the PR head is checked out: only users who could
+      # merge may run untrusted code with repo secrets.
+      - name: Restrict /test to maintainers
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            if (!['admin', 'maintain', 'write'].includes(data.permission)) {
+              core.setFailed(`${context.actor} is not a maintainer; /test is maintainers-only`);
+            }
+
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+
+      - name: TF acceptance tests
+        timeout-minutes: 15
+        env:
+          TF_ACC: "1"
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+        run: go test -v -cover ./koyeb
