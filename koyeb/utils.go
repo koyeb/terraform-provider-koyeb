@@ -36,6 +36,8 @@ func waitForResourceStatus[T any](fn func() (T, *_nethttp.Response, error), reso
 			status = fmt.Sprintf("%v", v.Deployment.GetStatus())
 		case *koyeb.GetDomainReply:
 			status = fmt.Sprintf("%v", v.Domain.GetStatus())
+		case *koyeb.GetServicePoolReply:
+			status = fmt.Sprintf("%v", v.ServicePool.GetStatus())
 		default:
 			return errors.New("unknown resource type")
 		}

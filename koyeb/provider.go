@@ -30,17 +30,20 @@ func New(version string) func() *schema.Provider {
 	return func() *schema.Provider {
 		p := &schema.Provider{
 			DataSourcesMap: map[string]*schema.Resource{
-				"koyeb_app":     dataSourceKoyebApp(),
-				"koyeb_service": dataSourceKoyebService(),
-				"koyeb_domain":  dataSourceKoyebDomain(),
-				"koyeb_secret":  dataSourceKoyebSecret(),
+				"koyeb_app":          dataSourceKoyebApp(),
+				"koyeb_service":      dataSourceKoyebService(),
+				"koyeb_domain":       dataSourceKoyebDomain(),
+				"koyeb_secret":       dataSourceKoyebSecret(),
+				"koyeb_service_pool": dataSourceKoyebServicePool(),
 			},
 			ResourcesMap: map[string]*schema.Resource{
-				"koyeb_app":     resourceKoyebApp(),
-				"koyeb_service": resourceKoyebService(),
-				"koyeb_domain":  resourceKoyebDomain(),
-				"koyeb_secret":  resourceKoyebSecret(),
-				"koyeb_volume":  resourceKoyebVolume(),
+				"koyeb_app":                resourceKoyebApp(),
+				"koyeb_service":            resourceKoyebService(),
+				"koyeb_domain":             resourceKoyebDomain(),
+				"koyeb_secret":             resourceKoyebSecret(),
+				"koyeb_volume":             resourceKoyebVolume(),
+				"koyeb_service_pool":       resourceKoyebServicePool(),
+				"koyeb_service_pool_claim": resourceKoyebServicePoolClaim(),
 			},
 		}
 
