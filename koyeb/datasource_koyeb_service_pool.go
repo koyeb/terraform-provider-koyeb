@@ -16,6 +16,9 @@ func dataSourceKoyebServicePool() *schema.Resource {
 	s["size"].Computed = true
 	s["definition"].Required = false
 	s["definition"].Computed = true
+	// MinItems/MaxItems are only valid on configurable attributes.
+	s["definition"].MinItems = 0
+	s["definition"].MaxItems = 0
 
 	return &schema.Resource{
 		ReadContext: dataSourceKoyebServicePoolRead,

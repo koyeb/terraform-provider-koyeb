@@ -42,6 +42,12 @@ func randomName(prefix string, length int) string {
 	return fmt.Sprintf("%s%s", prefix, acctest.RandString(length))
 }
 
+func TestProviderInternalValidate(t *testing.T) {
+	if err := testAccProvider.InternalValidate(); err != nil {
+		t.Fatalf("provider InternalValidate: %s", err)
+	}
+}
+
 func testAccPreCheck(t *testing.T) {
 	if v := os.Getenv("KOYEB_TOKEN"); v == "" {
 		// Fork PRs get no secrets, so CI cannot run ACC tests there;
