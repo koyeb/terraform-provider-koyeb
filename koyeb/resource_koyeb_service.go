@@ -2013,7 +2013,8 @@ func expandVolumes(config []interface{}) []koyeb.DeploymentVolume {
 			ReplicaIndex: toOpt(int64(volume["replica_index"].(int))),
 		}
 
-		rawScopes := volume["scopes"].([]interface{})
+		// The schema key is `scope` (singular); the API field is `scopes`.
+		rawScopes := volume["scope"].([]interface{})
 		scopes := make([]string, len(rawScopes))
 		for i, v := range rawScopes {
 			scopes[i] = v.(string)
@@ -2035,7 +2036,7 @@ func flattenVolumes(volumes *[]koyeb.DeploymentVolume) []map[string]interface{} 
 		r["id"] = volume.GetId()
 		r["path"] = volume.GetPath()
 		r["replica_index"] = volume.GetReplicaIndex()
-		// r["scopes"] = volume.GetScopes()
+		r["scope"] = volume.GetScopes()
 
 		result[i] = r
 	}

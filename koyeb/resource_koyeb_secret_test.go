@@ -189,8 +189,8 @@ func TestSetSecretAttributeGCPContainerRegistry(t *testing.T) {
 		GcpContainerRegistry: &koyeb.GCPContainerRegistryConfiguration{},
 	}
 	secretValue := map[string]interface{}{
-		"keyfile_content": `{"type":"service_account"}`,
-		"url":             "gcr.io",
+		"gcp_keyfile_content": "eyJ0eXBlIjoic2VydmljZV9hY2NvdW50In0=",
+		"url":                 "gcr.io",
 	}
 
 	if err := setSecretAttribute(d, secret, secretValue); err != nil {
@@ -202,8 +202,8 @@ func TestSetSecretAttributeGCPContainerRegistry(t *testing.T) {
 		t.Fatalf("expected 1 gcp_container_registry element, got %d", len(registries))
 	}
 	registry := registries[0].(map[string]interface{})
-	if registry["keyfile_content"] != secretValue["keyfile_content"] {
-		t.Errorf("expected keyfile_content %q, got %v", secretValue["keyfile_content"], registry["keyfile_content"])
+	if registry["keyfile_content"] != secretValue["gcp_keyfile_content"] {
+		t.Errorf("expected keyfile_content %q, got %v", secretValue["gcp_keyfile_content"], registry["keyfile_content"])
 	}
 	if registry["url"] != "gcr.io" {
 		t.Errorf("expected url %q, got %v", "gcr.io", registry["url"])

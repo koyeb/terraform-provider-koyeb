@@ -273,7 +273,18 @@ func setSecretAttribute(d *schema.ResourceData, secret koyeb.Secret, secretValue
 		d.Set("azure_container_registry", flattenRegistry(secretValue.(map[string]interface{}), "username", "password", "registry_name"))
 	}
 	if _, ok := secret.GetGcpContainerRegistryOk(); ok {
-		d.Set("gcp_container_registry", flattenRegistry(secretValue.(map[string]interface{}), "keyfile_content", "url"))
+		// The reveal returns the decrypted RegistrySecret with its JSON
+		// keys; the keyfile content is stored as gcp_keyfile_content and
+		// must be mapped back to the schema attribute name.
+		values := secretValue.(map[string]interface{})
+		flattened := map[string]interface{}{}
+		if keyfileContent, ok := values["gcp_keyfile_content"]; ok {
+			flattened["keyfile_content"] = keyfileContent
+		}
+		if url, ok := values["url"]; ok {
+			flattened["url"] = url
+		}
+		d.Set("gcp_container_registry", []interface{}{flattened})
 	}
 
 	d.Set("updated_at", secret.GetUpdatedAt().UTC().String())

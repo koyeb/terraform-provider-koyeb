@@ -1152,6 +1152,46 @@ func testSetOf(items ...interface{}) *schema.Set {
 	return schema.NewSet(func(_ interface{}) int { return 0 }, items)
 }
 
+func TestExpandVolumesMapsSchemaScopeKey(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"id":            "vol-id",
+			"path":          "/data",
+			"replica_index": 0,
+			"scope":         []interface{}{"was"},
+		},
+	}
+
+	volumes := expandVolumes(config)
+
+	if len(volumes) != 1 {
+		t.Fatalf("expected 1 volume, got %d", len(volumes))
+	}
+	if volumes[0].GetId() != "vol-id" || volumes[0].GetPath() != "/data" {
+		t.Errorf("expected id vol-id at /data, got %+v", volumes[0])
+	}
+	if scopes := volumes[0].GetScopes(); len(scopes) != 1 || scopes[0] != "was" {
+		t.Errorf("expected scopes [was], got %v", scopes)
+	}
+}
+
+func TestFlattenVolumesSetsScope(t *testing.T) {
+	volumes := []koyeb.DeploymentVolume{
+		{
+			Id:     toOpt("vol-id"),
+			Path:   toOpt("/data"),
+			Scopes: []string{"was"},
+		},
+	}
+
+	flattened := flattenVolumes(&volumes)
+
+	scope, ok := flattened[0]["scope"].([]string)
+	if !ok || len(scope) != 1 || scope[0] != "was" {
+		t.Errorf("expected scope [was], got %v (%T)", flattened[0]["scope"], flattened[0]["scope"])
+	}
+}
+
 func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
 	s := deploymentDefinitionSchena().Schema
 
