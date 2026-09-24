@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -140,6 +141,15 @@ func TestAccKoyebSnapshot_Basic(t *testing.T) {
 		CheckDestroy:      testAccCheckKoyebSnapshotDestroy,
 		Steps: []resource.TestStep{
 			{
+				// Snapshots require a volume that is mounted, and the mount
+				// only happens once the service is deployed: wait for the
+				// service to be healthy before adding the snapshot.
+				Config: fmt.Sprintf(testAccCheckKoyebSnapshotConfig_mounted, volumeName, appName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebServiceHealthy("koyeb_service.bar"),
+				),
+			},
+			{
 				Config: fmt.Sprintf(testAccCheckKoyebSnapshotConfig_basic, volumeName, appName, snapshotName),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckKoyebSnapshotExists("koyeb_snapshot.foobar", &snapshot),
@@ -171,6 +181,34 @@ func TestAccKoyebSnapshot_Basic(t *testing.T) {
 			},
 		},
 	})
+}
+
+// testAccCheckKoyebServiceHealthy polls the service until it reports
+// HEALTHY, so a dependent resource (like a volume snapshot) is only created
+// after the volume is actually mounted.
+func testAccCheckKoyebServiceHealthy(n string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[n]
+		if !ok {
+			return fmt.Errorf("Not found: %s", n)
+		}
+
+		client := testAccProvider.Meta().(*koyeb.APIClient)
+
+		for i := 0; i < 30; i++ {
+			res, _, err := client.ServicesApi.GetService(context.Background(), rs.Primary.ID).Execute()
+			if err != nil {
+				return err
+			}
+			service := res.GetService()
+			if service.GetStatus() == koyeb.SERVICESTATUS_HEALTHY {
+				return nil
+			}
+			time.Sleep(10 * time.Second)
+		}
+
+		return fmt.Errorf("service %s did not become healthy in time", n)
+	}
 }
 
 func testAccCheckKoyebSnapshotDestroy(s *terraform.State) error {
@@ -219,6 +257,44 @@ func testAccCheckKoyebSnapshotExists(n string, snapshot *koyeb.Snapshot) resourc
 		return nil
 	}
 }
+
+const testAccCheckKoyebSnapshotConfig_mounted = `
+resource "koyeb_volume" "foobar" {
+	name     = "%s"
+	max_size = 1
+	region   = "was"
+}
+
+resource "koyeb_app" "app" {
+	name = "%s"
+}
+
+resource "koyeb_service" "bar" {
+	app_name = koyeb_app.app.name
+	definition {
+		name = "service"
+		instance_types {
+		  type = "micro"
+		}
+		scalings {
+		  min = 1
+		  max = 1
+		}
+		volumes {
+		  id   = koyeb_volume.foobar.id
+		  path = "/data"
+		}
+		regions = ["was"]
+		docker {
+		  image = "koyeb/demo"
+		}
+	}
+
+	depends_on = [
+	  koyeb_app.app
+	]
+}
+`
 
 const testAccCheckKoyebSnapshotConfig_basic = `
 resource "koyeb_volume" "foobar" {

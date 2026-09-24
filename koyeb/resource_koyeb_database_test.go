@@ -132,11 +132,22 @@ func TestAccKoyebDatabase_Basic(t *testing.T) {
 		t.Skipf("skipping to stay within the organization's free instance quota (TF %s)", v)
 	}
 
+	// Skip when the organization's free instance quota is already
+	// consumed: that is an environment limit, not a code defect.
+	checkFreeQuota := func() {
+		if exhausted, err := freeInstanceQuotaExhausted(testAccProvider.Meta().(*koyeb.APIClient)); err == nil && exhausted {
+			t.Skip("skipping: the organization's free instance quota is exhausted")
+		}
+	}
+
 	var service koyeb.Service
 	databaseName := randomTestName()
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+			checkFreeQuota()
+		},
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebDatabaseDestroy,
 		Steps: []resource.TestStep{
@@ -363,6 +374,96 @@ func TestResourceKoyebDatabaseReadResolvesShortID(t *testing.T) {
 	}
 }
 
+func TestFreeInstanceQuotaExhausted(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/organizations"):
+			_, _ = w.Write([]byte(`{"organizations":[{"id":"org-id","name":"test"}]}`))
+		case strings.HasSuffix(r.URL.Path, "/usage"):
+			_, _ = w.Write([]byte(`{"usage":{"instances_by_type":[{"instance_type":"free","used":1,"limit":1}]}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	exhausted, err := freeInstanceQuotaExhausted(client)
+	if err != nil {
+		t.Fatalf("expected no error, got %s", err)
+	}
+	if !exhausted {
+		t.Error("expected the free instance quota to be exhausted")
+	}
+}
+
+func TestFreeInstanceQuotaAvailable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/organizations"):
+			_, _ = w.Write([]byte(`{"organizations":[{"id":"org-id","name":"test"}]}`))
+		case strings.HasSuffix(r.URL.Path, "/usage"):
+			_, _ = w.Write([]byte(`{"usage":{"instances_by_type":[{"instance_type":"free","used":0,"limit":1}]}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	exhausted, err := freeInstanceQuotaExhausted(client)
+	if err != nil {
+		t.Fatalf("expected no error, got %s", err)
+	}
+	if exhausted {
+		t.Error("expected the free instance quota to be available")
+	}
+}
+
+func TestDeleteVolumeWhenDetachedRetriesWhileAttached(t *testing.T) {
+	const volumeID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
+	deletes := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != "DELETE" {
+			// GetPersistentVolume: still attached until the second delete
+			attached := deletes < 2
+			serviceID := ""
+			if attached {
+				serviceID = "svc-id"
+			}
+			_, _ = w.Write([]byte(`{"volume":{"id":"` + volumeID + `","status":"PERSISTENT_VOLUME_STATUS_DELETING","service_id":"` + serviceID + `"}}`))
+			return
+		}
+		deletes++
+		if deletes < 3 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"status":400,"code":"failed_precondition","message":"Cannot delete a persistent volume still attached"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	if err := deleteVolumeWhenDetached(client, volumeID); err != nil {
+		t.Fatalf("expected the delete to eventually succeed, got %s", err)
+	}
+	if deletes != 3 {
+		t.Errorf("expected 3 delete attempts, got %d", deletes)
+	}
+}
 func TestNewRoleSecretNameIsValidSecretName(t *testing.T) {
 	// The API requires secret names to match ^[a-zA-Z_][a-zA-Z0-9-_]*$
 	// (2-64 chars); a bare UUID fails ~62% of the time because hex

@@ -33,7 +33,12 @@ data "koyeb_database" "bar" {
 }`
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
+		PreCheck: func() {
+			testAccPreCheck(t)
+			if exhausted, err := freeInstanceQuotaExhausted(testAccProvider.Meta().(*koyeb.APIClient)); err == nil && exhausted {
+				t.Skip("skipping: the organization's free instance quota is exhausted")
+			}
+		},
 		ProviderFactories: testAccProviderFactories,
 		Steps: []resource.TestStep{
 			{

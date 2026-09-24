@@ -16,7 +16,7 @@ func TestAccDataSourceKoyebSnapshot_Basic(t *testing.T) {
 	appName := randomTestName()
 	snapshotName := randomTestName()
 
-	resourceConfig := fmt.Sprintf(`
+	resourceConfigTemplate := fmt.Sprintf(`
 resource "koyeb_volume" "foobar" {
 	name     = "%s"
 	max_size = 1
@@ -52,7 +52,9 @@ resource "koyeb_service" "bar" {
 	  koyeb_app.app
 	]
 }
+`, volumeName, appName)
 
+	snapshotConfig := fmt.Sprintf(`
 resource "koyeb_snapshot" "foobar" {
 	name             = "%s"
 	parent_volume_id = koyeb_volume.foobar.id
@@ -61,7 +63,7 @@ resource "koyeb_snapshot" "foobar" {
 	  koyeb_service.bar
 	]
 }
-`, volumeName, appName, snapshotName)
+`, snapshotName)
 
 	dataSourceConfig := `
 data "koyeb_snapshot" "bar" {
@@ -73,10 +75,15 @@ data "koyeb_snapshot" "bar" {
 		ProviderFactories: testAccProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: resourceConfig,
+				// Wait for the service to mount the volume before adding
+				// the snapshot and the data source.
+				Config: resourceConfigTemplate,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebServiceHealthy("koyeb_service.bar"),
+				),
 			},
 			{
-				Config: resourceConfig + dataSourceConfig,
+				Config: resourceConfigTemplate + snapshotConfig + dataSourceConfig,
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckDataSourceKoyebSnapshotExists("data.koyeb_snapshot.bar", &snapshot),
 					resource.TestCheckResourceAttr("data.koyeb_snapshot.bar", "name", snapshotName),

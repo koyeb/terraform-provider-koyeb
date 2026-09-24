@@ -243,6 +243,34 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 // hold the database role password. Secret names must start with a letter,
 // so the UUID is prefixed: bare UUIDs start with a hex digit ~62% of the
 // time and the API rejects them.
+// freeInstanceQuotaExhausted reports whether the organization has any
+// free instance left, so the acceptance tests can skip instead of failing
+// on a quota they cannot control.
+func freeInstanceQuotaExhausted(client *koyeb.APIClient) (bool, error) {
+	orgs, _, err := client.ProfileApi.ListUserOrganizations(context.Background()).Execute()
+	if err != nil {
+		return false, err
+	}
+	if len(orgs.Organizations) == 0 {
+		return false, errors.New("no organization found for the token")
+	}
+	orgID := orgs.Organizations[0].GetId()
+
+	usage, _, err := client.QuotasApi.GetOrganizationQuotasUsage(context.Background(), orgID).Execute()
+	if err != nil {
+		return false, err
+	}
+
+	quotaUsage := usage.GetUsage()
+	for _, instanceType := range quotaUsage.GetInstancesByType() {
+		if instanceType.GetInstanceType() == "free" {
+			return instanceType.GetUsed() >= instanceType.GetLimit(), nil
+		}
+	}
+
+	return false, nil
+}
+
 func newRoleSecretName() (string, error) {
 	id, err := uuid.GenerateUUID()
 	if err != nil {

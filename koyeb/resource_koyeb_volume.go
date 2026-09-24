@@ -205,10 +205,8 @@ func resourceKoyebVolumeUpdate(ctx context.Context, d *schema.ResourceData, meta
 func resourceKoyebVolumeDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.PersistentVolumesApi.DeletePersistentVolume(context.Background(), d.Id()).Execute()
-
-	if err != nil {
-		return diag.Errorf("Error deleting volume: %s (%v %v)", err, resp, res)
+	if err := deleteVolumeWhenDetached(client, d.Id()); err != nil {
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")
