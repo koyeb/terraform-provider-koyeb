@@ -27,6 +27,7 @@ var registryTypes = []string{
 	"digital_ocean_container_registry",
 	"private_registry",
 	"azure_container_registry",
+	"gcp_container_registry",
 }
 
 func generateConflictRules(current string, others []string) []string {
@@ -138,6 +139,31 @@ func secretSchema() map[string]*schema.Schema {
 		}
 	}
 
+	// The GCP container registry is authenticated with a service account
+	// keyfile instead of a username and password, so it gets its own schema.
+	schemaMap["gcp_container_registry"] = &schema.Schema{
+		Type:     schema.TypeSet,
+		Optional: true,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"keyfile_content": {
+					Type:        schema.TypeString,
+					Required:    true,
+					Sensitive:   true,
+					Description: "The content of the GCP service account keyfile (JSON) with access to the registry",
+				},
+				"url": {
+					Type:        schema.TypeString,
+					Required:    true,
+					Description: "The registry URL, e.g. gcr.io or a regional endpoint like eu.gcr.io",
+				},
+			},
+		},
+		Description:   "The gcp_container_registry configuration to use",
+		MaxItems:      1,
+		ConflictsWith: generateConflictRules("gcp_container_registry", registryTypes),
+	}
+
 	return schemaMap
 }
 
@@ -147,7 +173,6 @@ func expandRegistry(config []interface{}, registryType string) interface{} {
 	}
 
 	rawRegistry := config[0].(map[string]interface{})
-	log.Printf("Expanding registry: %v", rawRegistry)
 
 	switch registryType {
 	case "docker_hub_registry":
@@ -181,6 +206,11 @@ func expandRegistry(config []interface{}, registryType string) interface{} {
 			Username:     toOpt(rawRegistry["username"].(string)),
 			Password:     toOpt(rawRegistry["password"].(string)),
 			RegistryName: toOpt(rawRegistry["registry_name"].(string)),
+		}
+	case "gcp_container_registry":
+		return &koyeb.GCPContainerRegistryConfiguration{
+			KeyfileContent: toOpt(rawRegistry["keyfile_content"].(string)),
+			Url:            toOpt(rawRegistry["url"].(string)),
 		}
 
 	default:
@@ -242,6 +272,9 @@ func setSecretAttribute(d *schema.ResourceData, secret koyeb.Secret, secretValue
 	if _, ok := secret.GetAzureContainerRegistryOk(); ok {
 		d.Set("azure_container_registry", flattenRegistry(secretValue.(map[string]interface{}), "username", "password", "registry_name"))
 	}
+	if _, ok := secret.GetGcpContainerRegistryOk(); ok {
+		d.Set("gcp_container_registry", flattenRegistry(secretValue.(map[string]interface{}), "keyfile_content", "url"))
+	}
 
 	d.Set("updated_at", secret.GetUpdatedAt().UTC().String())
 	d.Set("created_at", secret.GetCreatedAt().UTC().String())
@@ -283,6 +316,10 @@ func resourceKoyebSecretCreate(ctx context.Context, d *schema.ResourceData, meta
 
 	if azureContainerRegistry, ok := d.GetOk("azure_container_registry"); ok {
 		secret.AzureContainerRegistry = expandRegistry(azureContainerRegistry.(*schema.Set).List(), "azure_container_registry").(*koyeb.AzureContainerRegistryConfiguration)
+	}
+
+	if gcpContainerRegistry, ok := d.GetOk("gcp_container_registry"); ok {
+		secret.GcpContainerRegistry = expandRegistry(gcpContainerRegistry.(*schema.Set).List(), "gcp_container_registry").(*koyeb.GCPContainerRegistryConfiguration)
 	}
 
 	res, resp, err := client.SecretsApi.CreateSecret(ctx).Secret(secret).Execute()
@@ -385,6 +422,10 @@ func resourceKoyebSecretUpdate(ctx context.Context, d *schema.ResourceData, meta
 
 	if azureContainerRegistry, ok := d.GetOk("azure_container_registry"); ok {
 		secret.AzureContainerRegistry = expandRegistry(azureContainerRegistry.(*schema.Set).List(), "azure_container_registry").(*koyeb.AzureContainerRegistryConfiguration)
+	}
+
+	if gcpContainerRegistry, ok := d.GetOk("gcp_container_registry"); ok {
+		secret.GcpContainerRegistry = expandRegistry(gcpContainerRegistry.(*schema.Set).List(), "gcp_container_registry").(*koyeb.GCPContainerRegistryConfiguration)
 	}
 
 	res, resp, err := client.SecretsApi.UpdateSecret(context.Background(), d.Id()).Secret(secret).Execute()

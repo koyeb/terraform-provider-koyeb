@@ -28,6 +28,7 @@ data "koyeb_app" "my-app" {
 ### Read-Only
 
 - `created_at` (String) The date and time of when the app was created
+- `delete_when_empty` (Boolean) If set to true, the app is deleted once its last service is deleted
 - `domains` (List of Object) The app domains (see [below for nested schema](#nestedatt--domains))
 - `id` (String) The app ID
 - `organization_id` (String) The organization ID owning the app

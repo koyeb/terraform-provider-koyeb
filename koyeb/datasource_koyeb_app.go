@@ -10,9 +10,14 @@ import (
 )
 
 func dataSourceKoyebApp() *schema.Resource {
+	// The app schema is shared with the resource; on a data source the
+	// lifecycle flag can only ever be read, never configured.
+	s := appSchema()
+	s["delete_when_empty"].Optional = false
+
 	return &schema.Resource{
 		ReadContext: dataSourceKoyebAppRead,
-		Schema:      appSchema(),
+		Schema:      s,
 	}
 }
 

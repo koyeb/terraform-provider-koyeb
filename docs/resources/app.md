@@ -25,6 +25,10 @@ resource "koyeb_app" "my-app" {
 
 - `name` (String) The app name
 
+### Optional
+
+- `delete_when_empty` (Boolean) If set to true, the app is deleted once its last service is deleted
+
 ### Read-Only
 
 - `created_at` (String) The date and time of when the app was created

@@ -45,19 +45,107 @@ data "koyeb_service_pool" "my-pool" {
 
 Read-Only:
 
+- `archive` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--archive))
+- `config_files` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--config_files))
+- `database` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--database))
 - `docker` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--docker))
 - `env` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--env))
 - `git` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--git))
 - `health_checks` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--health_checks))
 - `instance_types` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--instance_types))
+- `mesh` (String)
 - `name` (String)
+- `network_policy` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--network_policy))
 - `ports` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--ports))
+- `proxy_ports` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--proxy_ports))
 - `regions` (Set of String)
 - `routes` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--routes))
 - `scalings` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings))
 - `skip_cache` (Boolean)
+- `strategy` (String)
 - `type` (String)
 - `volumes` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--volumes))
+
+<a id="nestedobjatt--definition--archive"></a>
+### Nested Schema for `definition.archive`
+
+Read-Only:
+
+- `buildpack` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--archive--buildpack))
+- `dockerfile` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--archive--dockerfile))
+- `id` (String)
+
+<a id="nestedobjatt--definition--archive--buildpack"></a>
+### Nested Schema for `definition.archive.buildpack`
+
+Read-Only:
+
+- `build_command` (String)
+- `privileged` (Boolean)
+- `run_command` (String)
+
+
+<a id="nestedobjatt--definition--archive--dockerfile"></a>
+### Nested Schema for `definition.archive.dockerfile`
+
+Read-Only:
+
+- `args` (List of String)
+- `command` (String)
+- `dockerfile` (String)
+- `entrypoint` (List of String)
+- `privileged` (Boolean)
+- `target` (String)
+
+
+
+<a id="nestedobjatt--definition--config_files"></a>
+### Nested Schema for `definition.config_files`
+
+Read-Only:
+
+- `content` (String)
+- `path` (String)
+- `permissions` (String)
+
+
+<a id="nestedobjatt--definition--database"></a>
+### Nested Schema for `definition.database`
+
+Read-Only:
+
+- `neon_postgres` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--database--neon_postgres))
+
+<a id="nestedobjatt--definition--database--neon_postgres"></a>
+### Nested Schema for `definition.database.neon_postgres`
+
+Read-Only:
+
+- `databases` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--database--neon_postgres--databases))
+- `instance_type` (String)
+- `pg_version` (Number)
+- `region` (String)
+- `roles` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--database--neon_postgres--roles))
+
+<a id="nestedobjatt--definition--database--neon_postgres--databases"></a>
+### Nested Schema for `definition.database.neon_postgres.roles`
+
+Read-Only:
+
+- `name` (String)
+- `owner` (String)
+
+
+<a id="nestedobjatt--definition--database--neon_postgres--roles"></a>
+### Nested Schema for `definition.database.neon_postgres.roles`
+
+Read-Only:
+
+- `name` (String)
+- `secret` (String)
+
+
+
 
 <a id="nestedobjatt--definition--docker"></a>
 ### Nested Schema for `definition.docker`
@@ -93,6 +181,8 @@ Read-Only:
 - `dockerfile` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--git--dockerfile))
 - `no_deploy_on_push` (Boolean)
 - `repository` (String)
+- `sha` (String)
+- `tag` (String)
 - `workdir` (String)
 
 <a id="nestedobjatt--definition--git--buildpack"></a>
@@ -169,8 +259,44 @@ Read-Only:
 - `type` (String)
 
 
+<a id="nestedobjatt--definition--network_policy"></a>
+### Nested Schema for `definition.network_policy`
+
+Read-Only:
+
+- `egress` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--network_policy--egress))
+- `mesh` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--network_policy--mesh))
+
+<a id="nestedobjatt--definition--network_policy--egress"></a>
+### Nested Schema for `definition.network_policy.egress`
+
+Read-Only:
+
+- `allow_list` (Set of String)
+- `mode` (String)
+
+
+<a id="nestedobjatt--definition--network_policy--mesh"></a>
+### Nested Schema for `definition.network_policy.mesh`
+
+Read-Only:
+
+- `name` (String)
+- `scope` (String)
+
+
+
 <a id="nestedobjatt--definition--ports"></a>
 ### Nested Schema for `definition.ports`
+
+Read-Only:
+
+- `port` (Number)
+- `protocol` (String)
+
+
+<a id="nestedobjatt--definition--proxy_ports"></a>
+### Nested Schema for `definition.proxy_ports`
 
 Read-Only:
 
@@ -185,6 +311,25 @@ Read-Only:
 
 - `path` (String)
 - `port` (Number)
+- `security_policies` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--routes--security_policies))
+
+<a id="nestedobjatt--definition--routes--security_policies"></a>
+### Nested Schema for `definition.routes.security_policies`
+
+Read-Only:
+
+- `api_keys` (Set of String)
+- `basic_auths` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--routes--security_policies--basic_auths))
+
+<a id="nestedobjatt--definition--routes--security_policies--basic_auths"></a>
+### Nested Schema for `definition.routes.security_policies.basic_auths`
+
+Read-Only:
+
+- `password` (String)
+- `username` (String)
+
+
 
 
 <a id="nestedobjatt--definition--scalings"></a>
@@ -207,9 +352,10 @@ Read-Only:
 - `concurrent_requests` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--concurrent_requests))
 - `request_response_time` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--request_response_time))
 - `requests_per_second` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--requests_per_second))
+- `sleep_idle_delay` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--scalings--targets--sleep_idle_delay))
 
 <a id="nestedobjatt--definition--scalings--targets--average_cpu"></a>
-### Nested Schema for `definition.scalings.targets.requests_per_second`
+### Nested Schema for `definition.scalings.targets.sleep_idle_delay`
 
 Read-Only:
 
@@ -217,7 +363,7 @@ Read-Only:
 
 
 <a id="nestedobjatt--definition--scalings--targets--average_mem"></a>
-### Nested Schema for `definition.scalings.targets.requests_per_second`
+### Nested Schema for `definition.scalings.targets.sleep_idle_delay`
 
 Read-Only:
 
@@ -225,7 +371,7 @@ Read-Only:
 
 
 <a id="nestedobjatt--definition--scalings--targets--concurrent_requests"></a>
-### Nested Schema for `definition.scalings.targets.requests_per_second`
+### Nested Schema for `definition.scalings.targets.sleep_idle_delay`
 
 Read-Only:
 
@@ -233,7 +379,7 @@ Read-Only:
 
 
 <a id="nestedobjatt--definition--scalings--targets--request_response_time"></a>
-### Nested Schema for `definition.scalings.targets.requests_per_second`
+### Nested Schema for `definition.scalings.targets.sleep_idle_delay`
 
 Read-Only:
 
@@ -241,11 +387,20 @@ Read-Only:
 
 
 <a id="nestedobjatt--definition--scalings--targets--requests_per_second"></a>
-### Nested Schema for `definition.scalings.targets.requests_per_second`
+### Nested Schema for `definition.scalings.targets.sleep_idle_delay`
 
 Read-Only:
 
 - `value` (Number)
+
+
+<a id="nestedobjatt--definition--scalings--targets--sleep_idle_delay"></a>
+### Nested Schema for `definition.scalings.targets.sleep_idle_delay`
+
+Read-Only:
+
+- `deep_sleep_value` (Number)
+- `light_sleep_value` (Number)
 
 
 
