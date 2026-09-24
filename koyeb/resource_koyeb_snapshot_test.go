@@ -387,7 +387,7 @@ func TestDeleteSnapshotWhenUploadedRetriesWhileUploading(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	if err := deleteSnapshotWhenUploaded(client, snapshotID); err != nil {
+	if err := deleteSnapshotWhenUploaded(client, snapshotID, 10*time.Millisecond); err != nil {
 		t.Fatalf("expected the delete to eventually succeed, got %s", err)
 	}
 	if deletes != 2 {

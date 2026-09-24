@@ -92,9 +92,9 @@ func resourceKoyebSnapshot() *schema.Resource {
 // deleteSnapshotWhenUploaded deletes a snapshot, tolerating the window
 // where it is still being uploaded: the API rejects the delete with
 // failed_precondition until the upload completes.
-func deleteSnapshotWhenUploaded(client *koyeb.APIClient, id string) error {
-	const attempts = 30
-	const interval = 10 * time.Second
+func deleteSnapshotWhenUploaded(client *koyeb.APIClient, id string, interval time.Duration) error {
+	// Uploading a snapshot can take several minutes on a busy volume.
+	const attempts = 60
 
 	for i := 0; i < attempts; i++ {
 		_, resp, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), id).Execute()
@@ -190,7 +190,7 @@ func resourceKoyebSnapshotUpdate(ctx context.Context, d *schema.ResourceData, me
 func resourceKoyebSnapshotDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	if err := deleteSnapshotWhenUploaded(client, d.Id()); err != nil {
+	if err := deleteSnapshotWhenUploaded(client, d.Id(), 10*time.Second); err != nil {
 		return diag.FromErr(err)
 	}
 
