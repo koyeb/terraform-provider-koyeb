@@ -244,6 +244,12 @@ func TestSetAppAttributeWithoutLifeCycle(t *testing.T) {
 		t.Fatalf("expected no error, got %s", err)
 	}
 
+	// GetOk treats an explicit false as unset, so assert presence through
+	// the raw state: the attribute must exist even when the API omits the
+	// life cycle (omitempty drops a false delete_when_empty).
+	if _, exists := d.GetOkExists("delete_when_empty"); !exists {
+		t.Error("expected delete_when_empty to be present in state even without a life cycle")
+	}
 	if d.Get("delete_when_empty").(bool) != false {
 		t.Errorf("expected delete_when_empty to default to false without a life cycle, got %v", d.Get("delete_when_empty"))
 	}

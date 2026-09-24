@@ -99,6 +99,7 @@ func TestSnapshotDataSourceSchemaContract(t *testing.T) {
 func TestAccKoyebSnapshot_Basic(t *testing.T) {
 	var snapshot koyeb.Snapshot
 	volumeName := randomTestName()
+	appName := randomTestName()
 	snapshotName := randomTestName()
 	renamedSnapshotName := randomTestName()
 
@@ -108,7 +109,7 @@ func TestAccKoyebSnapshot_Basic(t *testing.T) {
 		CheckDestroy:      testAccCheckKoyebSnapshotDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testAccCheckKoyebSnapshotConfig_basic, volumeName, snapshotName),
+				Config: fmt.Sprintf(testAccCheckKoyebSnapshotConfig_basic, volumeName, appName, snapshotName),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckKoyebSnapshotExists("koyeb_snapshot.foobar", &snapshot),
 					resource.TestCheckResourceAttr("koyeb_snapshot.foobar", "name", snapshotName),
@@ -124,14 +125,14 @@ func TestAccKoyebSnapshot_Basic(t *testing.T) {
 				),
 			},
 			{
-				Config: fmt.Sprintf(testAccCheckKoyebSnapshotConfig_basic, volumeName, renamedSnapshotName),
+				Config: fmt.Sprintf(testAccCheckKoyebSnapshotConfig_basic, volumeName, appName, renamedSnapshotName),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckKoyebSnapshotExists("koyeb_snapshot.foobar", &snapshot),
 					resource.TestCheckResourceAttr("koyeb_snapshot.foobar", "name", renamedSnapshotName),
 				),
 			},
 			{
-				Config:                  fmt.Sprintf(testAccCheckKoyebSnapshotConfig_basic, volumeName, renamedSnapshotName),
+				Config:                  fmt.Sprintf(testAccCheckKoyebSnapshotConfig_basic, volumeName, appName, renamedSnapshotName),
 				ImportState:             true,
 				ResourceName:            "koyeb_snapshot.foobar",
 				ImportStateVerify:       true,
@@ -195,7 +196,42 @@ resource "koyeb_volume" "foobar" {
 	region   = "was"
 }
 
+resource "koyeb_app" "app" {
+	name = "%s"
+}
+
+resource "koyeb_service" "bar" {
+	app_name = koyeb_app.app.name
+	definition {
+		name = "service"
+		instance_types {
+		  type = "micro"
+		}
+		scalings {
+		  min = 1
+		  max = 1
+		}
+		volumes {
+		  id   = koyeb_volume.foobar.id
+		  path = "/data"
+		}
+		regions = ["was"]
+		docker {
+		  image = "koyeb/demo"
+		}
+	}
+
+	depends_on = [
+	  koyeb_app.app
+	]
+}
+
+# Snapshots can only be taken from volumes mounted to a service.
 resource "koyeb_snapshot" "foobar" {
 	name             = "%s"
 	parent_volume_id = koyeb_volume.foobar.id
+
+	depends_on = [
+	  koyeb_service.bar
+	]
 }`

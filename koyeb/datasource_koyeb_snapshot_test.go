@@ -13,6 +13,7 @@ import (
 func TestAccDataSourceKoyebSnapshot_Basic(t *testing.T) {
 	var snapshot koyeb.Snapshot
 	volumeName := randomTestName()
+	appName := randomTestName()
 	snapshotName := randomTestName()
 
 	resourceConfig := fmt.Sprintf(`
@@ -22,11 +23,45 @@ resource "koyeb_volume" "foobar" {
 	region   = "was"
 }
 
+resource "koyeb_app" "app" {
+	name = "%s"
+}
+
+resource "koyeb_service" "bar" {
+	app_name = koyeb_app.app.name
+	definition {
+		name = "service"
+		instance_types {
+		  type = "micro"
+		}
+		scalings {
+		  min = 1
+		  max = 1
+		}
+		volumes {
+		  id   = koyeb_volume.foobar.id
+		  path = "/data"
+		}
+		regions = ["was"]
+		docker {
+		  image = "koyeb/demo"
+		}
+	}
+
+	depends_on = [
+	  koyeb_app.app
+	]
+}
+
 resource "koyeb_snapshot" "foobar" {
 	name             = "%s"
 	parent_volume_id = koyeb_volume.foobar.id
+
+	depends_on = [
+	  koyeb_service.bar
+	]
 }
-`, volumeName, snapshotName)
+`, volumeName, appName, snapshotName)
 
 	dataSourceConfig := `
 data "koyeb_snapshot" "bar" {

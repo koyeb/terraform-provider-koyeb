@@ -140,7 +140,7 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 		return diag.Errorf("Error resolving the database app: %s", err)
 	}
 
-	roleSecret, err := uuid.GenerateUUID()
+	roleSecret, err := newRoleSecretName()
 	if err != nil {
 		return diag.Errorf("Error generating the database role secret name: %s", err)
 	}
@@ -237,6 +237,18 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 
 	d.SetId("")
 	return nil
+}
+
+// newRoleSecretName returns the name of the managed secret that will
+// hold the database role password. Secret names must start with a letter,
+// so the UUID is prefixed: bare UUIDs start with a hex digit ~62% of the
+// time and the API rejects them.
+func newRoleSecretName() (string, error) {
+	id, err := uuid.GenerateUUID()
+	if err != nil {
+		return "", err
+	}
+	return "role-" + id, nil
 }
 
 func buildDatabaseDefinition(name string, pgVersion int, region, instanceType, dbName, dbOwner, roleSecret string) *koyeb.DeploymentDefinition {

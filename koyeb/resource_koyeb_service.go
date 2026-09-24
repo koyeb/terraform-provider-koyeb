@@ -173,6 +173,7 @@ func deploymentDefinitionSchena() *schema.Resource {
 			"strategy": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "DEPLOYMENT_STRATEGY_TYPE_ROLLING",
 				Description: "The deployment strategy used when updating the service: DEPLOYMENT_STRATEGY_TYPE_ROLLING, DEPLOYMENT_STRATEGY_TYPE_BLUE_GREEN or DEPLOYMENT_STRATEGY_TYPE_IMMEDIATE",
 				ValidateFunc: validation.StringInSlice([]string{
 					"DEPLOYMENT_STRATEGY_TYPE_ROLLING",
@@ -183,6 +184,7 @@ func deploymentDefinitionSchena() *schema.Resource {
 			"mesh": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "DEPLOYMENT_MESH_AUTO",
 				Description: "Whether the service joins the service mesh: DEPLOYMENT_MESH_AUTO, DEPLOYMENT_MESH_ENABLED or DEPLOYMENT_MESH_DISABLED",
 				ValidateFunc: validation.StringInSlice([]string{
 					"DEPLOYMENT_MESH_AUTO",

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -351,5 +352,22 @@ func TestResourceKoyebDatabaseReadResolvesShortID(t *testing.T) {
 	}
 	if d.Id() != appID {
 		t.Errorf("expected the short ID to resolve to %q, got %q", appID, d.Id())
+	}
+}
+
+func TestNewRoleSecretNameIsValidSecretName(t *testing.T) {
+	// The API requires secret names to match ^[a-zA-Z_][a-zA-Z0-9-_]*$
+	// (2-64 chars); a bare UUID fails ~62% of the time because hex
+	// UUIDs often start with a digit.
+	name, err := newRoleSecretName()
+	if err != nil {
+		t.Fatalf("expected no error, got %s", err)
+	}
+
+	if !regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9-_]{1,63}$`).MatchString(name) {
+		t.Errorf("expected a valid secret name, got %q", name)
+	}
+	if !strings.HasPrefix(name, "role-") {
+		t.Errorf("expected the name to carry a letter prefix, got %q", name)
 	}
 }

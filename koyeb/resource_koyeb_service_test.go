@@ -383,6 +383,10 @@ resource "koyeb_service" "bar" {
 		    }
 		  }
 		}
+		routes {
+		  port = 3000
+		  path = "/"
+		}
 		regions = ["tyo"]
 		docker {
 		  image = "koyeb/demo"
@@ -1146,4 +1150,18 @@ func TestExpandProxyPortsOmitsEmptyProtocol(t *testing.T) {
 // function is irrelevant because the expand funcs only read List().
 func testSetOf(items ...interface{}) *schema.Set {
 	return schema.NewSet(func(_ interface{}) int { return 0 }, items)
+}
+
+func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
+	s := deploymentDefinitionSchena().Schema
+
+	// The API fills strategy and mesh with these values in every stored
+	// definition; without matching schema defaults the definition
+	// read-back produces a perpetual diff on the service pool resource.
+	if got := s["strategy"].Default; got != "DEPLOYMENT_STRATEGY_TYPE_ROLLING" {
+		t.Errorf("expected strategy default DEPLOYMENT_STRATEGY_TYPE_ROLLING, got %v", got)
+	}
+	if got := s["mesh"].Default; got != "DEPLOYMENT_MESH_AUTO" {
+		t.Errorf("expected mesh default DEPLOYMENT_MESH_AUTO, got %v", got)
+	}
 }

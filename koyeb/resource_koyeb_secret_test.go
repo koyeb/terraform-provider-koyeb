@@ -2,6 +2,7 @@ package koyeb
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"strings"
@@ -107,9 +108,12 @@ func TestAccKoyebSecret_Basic(t *testing.T) {
 }
 
 func TestExpandRegistryGCPContainerRegistry(t *testing.T) {
+	// The API stores the keyfile base64-encoded.
+	const keyfileContent = "eyJ0eXBlIjoic2VydmljZV9hY2NvdW50In0="
+
 	config := []interface{}{
 		map[string]interface{}{
-			"keyfile_content": `{"type":"service_account"}`,
+			"keyfile_content": keyfileContent,
 			"url":             "gcr.io",
 		},
 	}
@@ -120,7 +124,7 @@ func TestExpandRegistryGCPContainerRegistry(t *testing.T) {
 	}
 
 	registry := expanded.(*koyeb.GCPContainerRegistryConfiguration)
-	if registry.GetKeyfileContent() != `{"type":"service_account"}` {
+	if registry.GetKeyfileContent() != keyfileContent {
 		t.Errorf("expected keyfile_content to be set, got %q", registry.GetKeyfileContent())
 	}
 	if registry.GetUrl() != "gcr.io" {
@@ -345,7 +349,7 @@ func testAccKoyebSecretConfig(templateType, name, value, extraArgs string) strin
 					keyfile_content = "%s"
 					url             = "%s"
 				}
-			}`, name, value, extraArgs)
+			}`, name, base64.StdEncoding.EncodeToString([]byte(value)), extraArgs)
 	default:
 		return ""
 	}

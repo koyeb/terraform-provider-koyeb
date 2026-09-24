@@ -80,9 +80,14 @@ func setAppAttribute(d *schema.ResourceData, app koyeb.App) error {
 	d.SetId(app.GetId())
 	d.Set("name", app.GetName())
 	d.Set("organization_id", app.GetOrganizationId())
+	// The API omits the life cycle when the flag is false (omitempty),
+	// so always write the attribute: an absent value would fail state
+	// checks and leave the Computed half of Optional+Computed empty.
+	deleteWhenEmpty := false
 	if lifeCycle, ok := app.GetLifeCycleOk(); ok {
-		d.Set("delete_when_empty", lifeCycle.GetDeleteWhenEmpty())
+		deleteWhenEmpty = lifeCycle.GetDeleteWhenEmpty()
 	}
+	d.Set("delete_when_empty", deleteWhenEmpty)
 	d.Set("domains", flattenDomains(&app.Domains, app.GetName()))
 	d.Set("updated_at", app.GetUpdatedAt().UTC().String())
 	d.Set("created_at", app.GetCreatedAt().UTC().String())

@@ -78,7 +78,7 @@ Required:
 
 Required:
 
-- `keyfile_content` (String, Sensitive) The content of the GCP service account keyfile (JSON) with access to the registry
+- `keyfile_content` (String, Sensitive) The base64-encoded content of the GCP service account keyfile (JSON) with access to the registry; read a keyfile from disk with the filebase64() function
 - `url` (String) The registry URL, e.g. gcr.io or a regional endpoint like eu.gcr.io
 
 
