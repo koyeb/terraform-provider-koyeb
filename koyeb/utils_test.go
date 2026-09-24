@@ -10,6 +10,46 @@ import (
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
 
+func TestWaitForResourceStatusVolumeSatisfiesTargetStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"volume":{"id":"vol-uuid","status":"PERSISTENT_VOLUME_STATUS_DELETED"}}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	err := waitForResourceStatus(
+		client.PersistentVolumesApi.GetPersistentVolume(context.Background(), "vol-uuid").Execute,
+		"Volume", []string{"PERSISTENT_VOLUME_STATUS_DELETED", "PERSISTENT_VOLUME_STATUS_DELETING"}, 1, false,
+	)
+	if err != nil {
+		t.Fatalf("expected the DELETED volume to satisfy the wait, got %s", err)
+	}
+}
+
+func TestWaitForResourceStatusVolumeTimesOutWhenStuck(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"volume":{"id":"vol-uuid","status":"PERSISTENT_VOLUME_STATUS_READY"}}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	err := waitForResourceStatus(
+		client.PersistentVolumesApi.GetPersistentVolume(context.Background(), "vol-uuid").Execute,
+		"Volume", []string{"PERSISTENT_VOLUME_STATUS_DELETED", "PERSISTENT_VOLUME_STATUS_DELETING"}, 0, false,
+	)
+	if err == nil || !strings.Contains(err.Error(), "resource failed to reach target status") {
+		t.Fatalf("expected a timeout error for a stuck volume, got %v", err)
+	}
+}
+
 func TestWaitForResourceStatusServicePoolSatisfiesTargetStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
