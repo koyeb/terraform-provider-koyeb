@@ -46,7 +46,7 @@ func TestAccKoyebVolume_Basic(t *testing.T) {
 
 func testAccCheckKoyebVolumeDestroy(s *terraform.State) error {
 	client := testAccProvider.Meta().(*koyeb.APIClient)
-	targetStatus := []string{"DELETED", "DELETING"}
+	targetStatus := []string{"PERSISTENT_VOLUME_STATUS_DELETED", "PERSISTENT_VOLUME_STATUS_DELETING"}
 
 	for _, rs := range s.RootModule().Resources {
 		if rs.Type != "koyeb_volume" {
@@ -54,8 +54,8 @@ func testAccCheckKoyebVolumeDestroy(s *terraform.State) error {
 		}
 
 		err := waitForResourceStatus(client.PersistentVolumesApi.GetPersistentVolume(context.Background(), rs.Primary.ID).Execute, "Volume", targetStatus, 1, false)
-		if err == nil {
-			return fmt.Errorf("Volume still exists: %s ", err)
+		if err != nil {
+			return fmt.Errorf("Volume still exists: %s", err)
 		}
 	}
 
