@@ -6,7 +6,12 @@ on:
   pull_request:
     paths-ignore:
       - "README.md"
+  # Branch pushes are covered by their pull request run; only main runs
+  # on the push event, so a branch with an open PR never produces two
+  # suites for the same commit.
   push:
+    branches:
+      - main
     paths-ignore:
       - "README.md"
   # For systems with an upstream API that could drift unexpectedly (like most SaaS systems, etc.),
