@@ -41,9 +41,17 @@ resource "koyeb_service" "bar" {
 		instance_types {
 		  type = "micro"
 		}
+		ports {
+		  port     = 3000
+		  protocol = "http"
+		}
 		scalings {
 		  min = 1
 		  max = 1
+		}
+		routes {
+		  port = 3000
+		  path = "/"
 		}
 		volumes {
 		  id   = koyeb_volume.foobar.id
