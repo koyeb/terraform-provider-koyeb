@@ -19,7 +19,7 @@ func TestAccKoyebServicePoolClaim_Basic(t *testing.T) {
 	requestID := randomTestName()
 
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
+		PreCheck:          func() { testAccPreCheck(t); testAccSkipIfServicePoolsUnavailable(t) },
 		ProviderFactories: testAccProviderFactories,
 		Steps: []resource.TestStep{
 			{

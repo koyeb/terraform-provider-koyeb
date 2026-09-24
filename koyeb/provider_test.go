@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
 
 const testNamePrefix = "tf-acc-test-"
@@ -45,6 +46,16 @@ func randomName(prefix string, length int) string {
 func TestProviderInternalValidate(t *testing.T) {
 	if err := testAccProvider.InternalValidate(); err != nil {
 		t.Fatalf("provider InternalValidate: %s", err)
+	}
+}
+
+func testAccSkipIfServicePoolsUnavailable(t *testing.T) {
+	// Service pools ship behind the serverless_container_sandbox_pool
+	// flag and a route deployment: APIs that don't serve them yet cannot
+	// pass these tests, so probe before running.
+	client := testAccProvider.Meta().(*koyeb.APIClient)
+	if _, _, err := client.ServicePoolsApi.ListServicePools(context.Background()).Execute(); err != nil {
+		t.Skipf("service pools are not available on the target Koyeb API: %s", err)
 	}
 }
 
