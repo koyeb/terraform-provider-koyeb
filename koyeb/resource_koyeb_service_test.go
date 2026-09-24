@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
@@ -113,6 +114,52 @@ func TestAccKoyebService_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet("koyeb_service.bar", "latest_deployment"),
 				),
 			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebServiceConfig_docker_sleep_idle_delay, appName, appName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebServiceExists("koyeb_service.bar", &service),
+					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "service"),
+					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.scalings.*.targets.*.sleep_idle_delay.*", map[string]string{
+						"light_sleep_value": "60",
+						"deep_sleep_value":  "300",
+					}),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebServiceConfig_docker_strategy_proxyports_configfiles, appName, appName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebServiceExists("koyeb_service.bar", &service),
+					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "service"),
+					resource.TestCheckResourceAttr("koyeb_service.bar", "definition.0.strategy", "DEPLOYMENT_STRATEGY_TYPE_BLUE_GREEN"),
+					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.proxy_ports.*", map[string]string{
+						"port":     "22",
+						"protocol": "tcp",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.config_files.*", map[string]string{
+						"path":        "/etc/data.yaml",
+						"content":     "key: value",
+						"permissions": "0644",
+					}),
+				),
+			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebServiceConfig_docker_mesh_network_auth, appName, appName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebServiceExists("koyeb_service.bar", &service),
+					resource.TestCheckResourceAttr("koyeb_service.bar", "name", "service"),
+					resource.TestCheckResourceAttr("koyeb_service.bar", "definition.0.mesh", "DEPLOYMENT_MESH_DISABLED"),
+					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.network_policy.*.egress.*", map[string]string{
+						"mode": "EGRESS_POLICY_MODE_DEFAULT",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.routes.*.security_policies.*.basic_auths.*", map[string]string{
+						"username": "user",
+						"password": "password",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.routes.*.security_policies.*", map[string]string{
+						"api_keys.#": "1",
+					}),
+				),
+			},
 		},
 	})
 }
@@ -166,6 +213,95 @@ func testAccCheckKoyebServiceExists(n string, service *koyeb.Service) resource.T
 	}
 }
 
+const testAccCheckKoyebServiceConfig_docker_mesh_network_auth = `
+resource "koyeb_app" "foo" {
+	name = "%s"
+}
+
+resource "koyeb_service" "bar" {
+	app_name = "%s"
+	definition {
+		name = "service"
+		instance_types {
+		  type = "micro"
+		}
+		ports {
+		  port     = 3000
+		  protocol = "http"
+		}
+		scalings {
+		  min = 1
+		  max = 1
+		}
+		mesh = "DEPLOYMENT_MESH_DISABLED"
+		network_policy {
+		  egress {
+		    mode = "EGRESS_POLICY_MODE_DEFAULT"
+		  }
+		}
+		routes {
+		  port = 3000
+		  path = "/"
+		  security_policies {
+		    basic_auths {
+		      username = "user"
+		      password = "password"
+		    }
+		    api_keys = ["api-key"]
+		  }
+		}
+		regions = ["tyo"]
+		docker {
+		  image = "koyeb/demo"
+		}
+	}
+
+	depends_on = [
+	  koyeb_app.foo
+	]
+}`
+
+const testAccCheckKoyebServiceConfig_docker_strategy_proxyports_configfiles = `
+resource "koyeb_app" "foo" {
+	name = "%s"
+}
+
+resource "koyeb_service" "bar" {
+	app_name = "%s"
+	definition {
+		name = "service"
+		instance_types {
+		  type = "micro"
+		}
+		ports {
+		  port     = 3000
+		  protocol = "http"
+		}
+		scalings {
+		  min = 1
+		  max = 1
+		}
+		strategy = "DEPLOYMENT_STRATEGY_TYPE_BLUE_GREEN"
+		proxy_ports {
+		  port     = 22
+		  protocol = "tcp"
+		}
+		config_files {
+		  path        = "/etc/data.yaml"
+		  content     = "key: value"
+		  permissions = "0644"
+		}
+		regions = ["tyo"]
+		docker {
+		  image = "koyeb/demo"
+		}
+	}
+
+	depends_on = [
+	  koyeb_app.foo
+	]
+}`
+
 const testAccCheckKoyebServiceConfig_basic_docker = `
 resource "koyeb_app" "foo" {
 	name = "%s"
@@ -203,6 +339,47 @@ resource "koyeb_service" "bar" {
 				value = "Value"
 			}
 		  }
+		}
+		regions = ["tyo"]
+		docker {
+		  image = "koyeb/demo"
+		}
+	}
+
+	depends_on = [
+	  koyeb_app.foo
+	]
+}`
+
+const testAccCheckKoyebServiceConfig_docker_sleep_idle_delay = `
+resource "koyeb_app" "foo" {
+	name = "%s"
+}
+
+resource "koyeb_service" "bar" {
+	app_name = "%s"
+	definition {
+		name = "service"
+		instance_types {
+		  type = "micro"
+		}
+		ports {
+		  port     = 3000
+		  protocol = "http"
+		}
+		scalings {
+		  min = 0
+		  max = 1
+		  targets {
+		    sleep_idle_delay {
+		      light_sleep_value = 60
+		      deep_sleep_value  = 300
+		    }
+		  }
+		}
+		routes {
+		  port = 3000
+		  path = "/"
 		}
 		regions = ["tyo"]
 		docker {
@@ -296,3 +473,729 @@ resource "koyeb_service" "bar" {
 	  koyeb_app.foo
 	]
 }`
+
+func TestExpandGitSourceSetsTagAndSha(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"repository":        "github.com/koyeb/example",
+			"branch":            "",
+			"tag":               "v1.2.3",
+			"sha":               "0123456789abcdef",
+			"workdir":           "",
+			"no_deploy_on_push": false,
+		},
+	}
+
+	gitSource := expandGitSource(config)
+
+	if gitSource.GetTag() != "v1.2.3" {
+		t.Errorf("expected tag %q, got %q", "v1.2.3", gitSource.GetTag())
+	}
+	if gitSource.GetSha() != "0123456789abcdef" {
+		t.Errorf("expected sha %q, got %q", "0123456789abcdef", gitSource.GetSha())
+	}
+}
+
+func TestFlattenGitSetsTagAndSha(t *testing.T) {
+	gitSource := &koyeb.GitSource{
+		Repository: toOpt("github.com/koyeb/example"),
+		Branch:     toOpt("main"),
+		Tag:        toOpt("v1.2.3"),
+		Sha:        toOpt("0123456789abcdef"),
+	}
+
+	flattened := flattenGit(gitSource)[0].(map[string]interface{})
+
+	if flattened["tag"] != "v1.2.3" {
+		t.Errorf("expected tag %q, got %v", "v1.2.3", flattened["tag"])
+	}
+	if flattened["sha"] != "0123456789abcdef" {
+		t.Errorf("expected sha %q, got %v", "0123456789abcdef", flattened["sha"])
+	}
+}
+
+func TestExpandScalingsSetsSleepIdleDelay(t *testing.T) {
+	sleepIdleDelay := schema.NewSet(func(_ interface{}) int { return 0 }, []interface{}{
+		map[string]interface{}{"light_sleep_value": 300, "deep_sleep_value": 1800},
+	})
+	targets := schema.NewSet(func(_ interface{}) int { return 0 }, []interface{}{
+		map[string]interface{}{"sleep_idle_delay": sleepIdleDelay},
+	})
+	config := []interface{}{
+		map[string]interface{}{
+			"min":     0,
+			"max":     1,
+			"scopes":  []interface{}{},
+			"targets": targets,
+		},
+	}
+
+	scalings := expandScalings(config)
+
+	if len(scalings) != 1 {
+		t.Fatalf("expected 1 scaling, got %d", len(scalings))
+	}
+
+	var sleepIdleDelayTarget *koyeb.DeploymentScalingTargetSleepIdleDelay
+	for _, target := range scalings[0].Targets {
+		if target.SleepIdleDelay != nil {
+			sleepIdleDelayTarget = target.SleepIdleDelay
+		}
+	}
+	if sleepIdleDelayTarget == nil {
+		t.Fatal("expected a sleep_idle_delay scaling target")
+	}
+	if sleepIdleDelayTarget.GetLightSleepValue() != 300 {
+		t.Errorf("expected light_sleep_value 300, got %d", sleepIdleDelayTarget.GetLightSleepValue())
+	}
+	if sleepIdleDelayTarget.GetDeepSleepValue() != 1800 {
+		t.Errorf("expected deep_sleep_value 1800, got %d", sleepIdleDelayTarget.GetDeepSleepValue())
+	}
+}
+
+func TestFlattenScalingsSetsSleepIdleDelay(t *testing.T) {
+	scalings := []koyeb.DeploymentScaling{
+		{
+			Min: toOpt(int64(0)),
+			Max: toOpt(int64(1)),
+			Targets: []koyeb.DeploymentScalingTarget{
+				{
+					SleepIdleDelay: &koyeb.DeploymentScalingTargetSleepIdleDelay{
+						LightSleepValue: toOpt(int64(300)),
+						DeepSleepValue:  toOpt(int64(1800)),
+					},
+				},
+			},
+		},
+	}
+
+	flattened := flattenScalings(&scalings)
+
+	targets := flattened[0]["targets"].(*schema.Set).List()
+	if len(targets) != 1 {
+		t.Fatalf("expected 1 target, got %d", len(targets))
+	}
+	target := targets[0].(map[string]interface{})
+
+	sleepIdleDelaySet, ok := target["sleep_idle_delay"].(*schema.Set)
+	if !ok {
+		t.Fatal("expected a sleep_idle_delay set in the flattened target")
+	}
+	sleepIdleDelay := sleepIdleDelaySet.List()[0].(map[string]interface{})
+	if sleepIdleDelay["light_sleep_value"] != 300 {
+		t.Errorf("expected light_sleep_value 300, got %v", sleepIdleDelay["light_sleep_value"])
+	}
+	if sleepIdleDelay["deep_sleep_value"] != 1800 {
+		t.Errorf("expected deep_sleep_value 1800, got %v", sleepIdleDelay["deep_sleep_value"])
+	}
+}
+
+func testRawDefinition() map[string]interface{} {
+	emptySet := func() *schema.Set { return schema.NewSet(func(_ interface{}) int { return 0 }, nil) }
+
+	return map[string]interface{}{
+		"name":           "service",
+		"type":           "WEB",
+		"env":            emptySet(),
+		"ports":          emptySet(),
+		"routes":         emptySet(),
+		"scalings":       emptySet(),
+		"instance_types": emptySet(),
+		"regions":        emptySet(),
+		"health_checks":  emptySet(),
+		"volumes":        emptySet(),
+		"proxy_ports":    emptySet(),
+		"config_files":   emptySet(),
+		"database":       emptySet(),
+		"network_policy": emptySet(),
+		"archive":        emptySet(),
+		"git":            emptySet(),
+		"docker":         emptySet(),
+		"skip_cache":     false,
+	}
+}
+
+func TestExpandDeploymentDefinitionSetsStrategy(t *testing.T) {
+	raw := testRawDefinition()
+	raw["strategy"] = "DEPLOYMENT_STRATEGY_TYPE_BLUE_GREEN"
+
+	definition := expandDeploymentDefinition(raw)
+
+	if definition.Strategy == nil {
+		t.Fatal("expected a strategy to be set")
+	}
+	if definition.Strategy.GetType() != koyeb.DEPLOYMENTSTRATEGYTYPE_BLUE_GREEN {
+		t.Errorf("expected strategy %q, got %q", koyeb.DEPLOYMENTSTRATEGYTYPE_BLUE_GREEN, definition.Strategy.GetType())
+	}
+}
+
+func TestFlattenDeploymentDefinitionSetsStrategy(t *testing.T) {
+	definition := &koyeb.DeploymentDefinition{
+		Strategy: &koyeb.DeploymentStrategy{
+			Type: toOpt(koyeb.DEPLOYMENTSTRATEGYTYPE_BLUE_GREEN),
+		},
+	}
+
+	flattened := flattenDeploymentDefinition(definition)[0].(map[string]interface{})
+
+	if flattened["strategy"] != string(koyeb.DEPLOYMENTSTRATEGYTYPE_BLUE_GREEN) {
+		t.Errorf("expected strategy %q, got %v", koyeb.DEPLOYMENTSTRATEGYTYPE_BLUE_GREEN, flattened["strategy"])
+	}
+}
+
+func TestExpandDeploymentDefinitionSetsProxyPorts(t *testing.T) {
+	raw := testRawDefinition()
+	raw["proxy_ports"] = schema.NewSet(func(_ interface{}) int { return 0 }, []interface{}{
+		map[string]interface{}{"port": 22, "protocol": "tcp"},
+	})
+
+	definition := expandDeploymentDefinition(raw)
+
+	if len(definition.ProxyPorts) != 1 {
+		t.Fatalf("expected 1 proxy port, got %d", len(definition.ProxyPorts))
+	}
+	if definition.ProxyPorts[0].GetPort() != 22 {
+		t.Errorf("expected port 22, got %d", definition.ProxyPorts[0].GetPort())
+	}
+	if definition.ProxyPorts[0].GetProtocol() != koyeb.PROXYPORTPROTOCOL_TCP {
+		t.Errorf("expected protocol %q, got %q", koyeb.PROXYPORTPROTOCOL_TCP, definition.ProxyPorts[0].GetProtocol())
+	}
+}
+
+func TestFlattenDeploymentDefinitionSetsProxyPorts(t *testing.T) {
+	definition := &koyeb.DeploymentDefinition{
+		ProxyPorts: []koyeb.DeploymentProxyPort{
+			{
+				Port:     toOpt(int64(22)),
+				Protocol: toOpt(koyeb.PROXYPORTPROTOCOL_TCP),
+			},
+		},
+	}
+
+	flattened := flattenDeploymentDefinition(definition)[0].(map[string]interface{})
+
+	proxyPorts, ok := flattened["proxy_ports"].([]map[string]interface{})
+	if !ok {
+		t.Fatalf("expected proxy_ports to be flattened, got %T", flattened["proxy_ports"])
+	}
+	if len(proxyPorts) != 1 {
+		t.Fatalf("expected 1 proxy port, got %d", len(proxyPorts))
+	}
+	if proxyPorts[0]["port"] != 22 {
+		t.Errorf("expected port 22, got %v", proxyPorts[0]["port"])
+	}
+	if proxyPorts[0]["protocol"] != "tcp" {
+		t.Errorf("expected protocol tcp, got %v", proxyPorts[0]["protocol"])
+	}
+}
+
+func TestExpandDeploymentDefinitionSetsConfigFiles(t *testing.T) {
+	raw := testRawDefinition()
+	raw["config_files"] = schema.NewSet(func(_ interface{}) int { return 0 }, []interface{}{
+		map[string]interface{}{
+			"path":        "/etc/data.yaml",
+			"content":     "key: value",
+			"permissions": "0644",
+		},
+	})
+
+	definition := expandDeploymentDefinition(raw)
+
+	if len(definition.ConfigFiles) != 1 {
+		t.Fatalf("expected 1 config file, got %d", len(definition.ConfigFiles))
+	}
+	if definition.ConfigFiles[0].GetPath() != "/etc/data.yaml" {
+		t.Errorf("expected path %q, got %q", "/etc/data.yaml", definition.ConfigFiles[0].GetPath())
+	}
+	if definition.ConfigFiles[0].GetContent() != "key: value" {
+		t.Errorf("expected content to be set, got %q", definition.ConfigFiles[0].GetContent())
+	}
+	if definition.ConfigFiles[0].GetPermissions() != "0644" {
+		t.Errorf("expected permissions 0644, got %q", definition.ConfigFiles[0].GetPermissions())
+	}
+}
+
+func TestFlattenDeploymentDefinitionSetsConfigFiles(t *testing.T) {
+	definition := &koyeb.DeploymentDefinition{
+		ConfigFiles: []koyeb.ConfigFile{
+			{
+				Path:        toOpt("/etc/data.yaml"),
+				Content:     toOpt("key: value"),
+				Permissions: toOpt("0644"),
+			},
+		},
+	}
+
+	flattened := flattenDeploymentDefinition(definition)[0].(map[string]interface{})
+
+	configFiles, ok := flattened["config_files"].([]map[string]interface{})
+	if !ok {
+		t.Fatalf("expected config_files to be flattened, got %T", flattened["config_files"])
+	}
+	if len(configFiles) != 1 {
+		t.Fatalf("expected 1 config file, got %d", len(configFiles))
+	}
+	if configFiles[0]["path"] != "/etc/data.yaml" {
+		t.Errorf("expected path %q, got %v", "/etc/data.yaml", configFiles[0]["path"])
+	}
+	if configFiles[0]["content"] != "key: value" {
+		t.Errorf("expected content to be set, got %v", configFiles[0]["content"])
+	}
+	if configFiles[0]["permissions"] != "0644" {
+		t.Errorf("expected permissions 0644, got %v", configFiles[0]["permissions"])
+	}
+}
+
+func TestExpandDeploymentDefinitionSetsDatabase(t *testing.T) {
+	raw := testRawDefinition()
+	raw["type"] = "DATABASE"
+	raw["database"] = testSetOf(map[string]interface{}{
+		"neon_postgres": testSetOf(map[string]interface{}{
+			"pg_version":    16,
+			"region":        "was",
+			"instance_type": "free",
+			"databases": testSetOf(map[string]interface{}{
+				"name":  "koyebdb",
+				"owner": "koyeb-adm",
+			}),
+			"roles": testSetOf(map[string]interface{}{
+				"name":   "koyeb-adm",
+				"secret": "role-secret",
+			}),
+		}),
+	})
+
+	definition := expandDeploymentDefinition(raw)
+
+	if definition.Database == nil || definition.Database.NeonPostgres == nil {
+		t.Fatal("expected a neon postgres database source to be set")
+	}
+
+	neon := definition.Database.NeonPostgres
+	if neon.GetPgVersion() != 16 {
+		t.Errorf("expected pg_version 16, got %d", neon.GetPgVersion())
+	}
+	if neon.GetRegion() != "was" {
+		t.Errorf("expected region was, got %q", neon.GetRegion())
+	}
+	if neon.GetInstanceType() != "free" {
+		t.Errorf("expected instance type free, got %q", neon.GetInstanceType())
+	}
+	if len(neon.Databases) != 1 || neon.Databases[0].GetName() != "koyebdb" || neon.Databases[0].GetOwner() != "koyeb-adm" {
+		t.Errorf("expected one database koyebdb owned by koyeb-adm, got %+v", neon.Databases)
+	}
+	if len(neon.Roles) != 1 || neon.Roles[0].GetName() != "koyeb-adm" || neon.Roles[0].GetSecret() != "role-secret" {
+		t.Errorf("expected one role koyeb-adm with a secret, got %+v", neon.Roles)
+	}
+}
+
+func TestFlattenDeploymentDefinitionSetsDatabase(t *testing.T) {
+	definition := &koyeb.DeploymentDefinition{
+		Database: &koyeb.DatabaseSource{
+			NeonPostgres: &koyeb.NeonPostgresDatabase{
+				PgVersion:    toOpt(int64(16)),
+				Region:       toOpt("was"),
+				InstanceType: toOpt("free"),
+				Databases: []koyeb.NeonPostgresDatabaseNeonDatabase{
+					{Name: toOpt("koyebdb"), Owner: toOpt("koyeb-adm")},
+				},
+				Roles: []koyeb.NeonPostgresDatabaseNeonRole{
+					{Name: toOpt("koyeb-adm"), Secret: toOpt("role-secret")},
+				},
+			},
+		},
+	}
+
+	flattened := flattenDeploymentDefinition(definition)[0].(map[string]interface{})
+
+	databases, ok := flattened["database"].([]interface{})
+	if !ok || len(databases) != 1 {
+		t.Fatalf("expected database to be flattened, got %T", flattened["database"])
+	}
+	database := databases[0].(map[string]interface{})
+	neonPostgresSet, ok := database["neon_postgres"].(*schema.Set)
+	if !ok {
+		t.Fatalf("expected neon_postgres to be flattened, got %T", database["neon_postgres"])
+	}
+	neon := neonPostgresSet.List()[0].(map[string]interface{})
+
+	if neon["pg_version"] != 16 {
+		t.Errorf("expected pg_version 16, got %v", neon["pg_version"])
+	}
+	if neon["region"] != "was" {
+		t.Errorf("expected region was, got %v", neon["region"])
+	}
+	if neon["instance_type"] != "free" {
+		t.Errorf("expected instance type free, got %v", neon["instance_type"])
+	}
+
+	neonDatabases := neon["databases"].(*schema.Set).List()
+	if len(neonDatabases) != 1 {
+		t.Fatalf("expected 1 database, got %d", len(neonDatabases))
+	}
+	if neonDatabases[0].(map[string]interface{})["name"] != "koyebdb" {
+		t.Errorf("expected database name koyebdb, got %v", neonDatabases[0])
+	}
+	if neonDatabases[0].(map[string]interface{})["owner"] != "koyeb-adm" {
+		t.Errorf("expected database owner koyeb-adm, got %v", neonDatabases[0])
+	}
+
+	neonRoles := neon["roles"].(*schema.Set).List()
+	if len(neonRoles) != 1 {
+		t.Fatalf("expected 1 role, got %d", len(neonRoles))
+	}
+	if neonRoles[0].(map[string]interface{})["name"] != "koyeb-adm" {
+		t.Errorf("expected role name koyeb-adm, got %v", neonRoles[0])
+	}
+	if neonRoles[0].(map[string]interface{})["secret"] != "role-secret" {
+		t.Errorf("expected role secret role-secret, got %v", neonRoles[0])
+	}
+}
+
+func TestExpandDeploymentDefinitionSetsMesh(t *testing.T) {
+	raw := testRawDefinition()
+	raw["mesh"] = "DEPLOYMENT_MESH_ENABLED"
+
+	definition := expandDeploymentDefinition(raw)
+
+	if definition.GetMesh() != koyeb.DEPLOYMENTMESH_ENABLED {
+		t.Errorf("expected mesh %q, got %q", koyeb.DEPLOYMENTMESH_ENABLED, definition.GetMesh())
+	}
+}
+
+func TestFlattenDeploymentDefinitionSetsMesh(t *testing.T) {
+	definition := &koyeb.DeploymentDefinition{
+		Mesh: toOpt(koyeb.DEPLOYMENTMESH_ENABLED),
+	}
+
+	flattened := flattenDeploymentDefinition(definition)[0].(map[string]interface{})
+
+	if flattened["mesh"] != string(koyeb.DEPLOYMENTMESH_ENABLED) {
+		t.Errorf("expected mesh %q, got %v", koyeb.DEPLOYMENTMESH_ENABLED, flattened["mesh"])
+	}
+}
+
+func TestExpandDeploymentDefinitionSetsNetworkPolicy(t *testing.T) {
+	raw := testRawDefinition()
+	raw["network_policy"] = testSetOf(map[string]interface{}{
+		"egress": testSetOf(map[string]interface{}{
+			"mode":       "EGRESS_POLICY_MODE_DENY_ALL",
+			"allow_list": schema.NewSet(schema.HashString, []interface{}{"10.0.0.0/8"}),
+		}),
+		"mesh": testSetOf(map[string]interface{}{
+			"scope": "MESH_SCOPE_APP",
+			"name":  "",
+		}),
+	})
+
+	definition := expandDeploymentDefinition(raw)
+
+	if definition.NetworkPolicy == nil {
+		t.Fatal("expected a network policy to be set")
+	}
+
+	if definition.NetworkPolicy.Egress == nil {
+		t.Fatal("expected an egress policy to be set")
+	}
+	if definition.NetworkPolicy.Egress.GetMode() != koyeb.EGRESSPOLICYMODE_DENY_ALL {
+		t.Errorf("expected egress mode %q, got %q", koyeb.EGRESSPOLICYMODE_DENY_ALL, definition.NetworkPolicy.Egress.GetMode())
+	}
+	if len(definition.NetworkPolicy.Egress.AllowList) != 1 || definition.NetworkPolicy.Egress.AllowList[0].GetCidr() != "10.0.0.0/8" {
+		t.Errorf("expected allow list [10.0.0.0/8], got %+v", definition.NetworkPolicy.Egress.AllowList)
+	}
+
+	if definition.NetworkPolicy.Mesh == nil {
+		t.Fatal("expected a mesh policy to be set")
+	}
+	if definition.NetworkPolicy.Mesh.GetScope() != koyeb.MESHSCOPE_APP {
+		t.Errorf("expected mesh scope %q, got %q", koyeb.MESHSCOPE_APP, definition.NetworkPolicy.Mesh.GetScope())
+	}
+}
+
+func TestFlattenDeploymentDefinitionSetsNetworkPolicy(t *testing.T) {
+	definition := &koyeb.DeploymentDefinition{
+		NetworkPolicy: &koyeb.NetworkPolicy{
+			Egress: &koyeb.EgressPolicy{
+				Mode: toOpt(koyeb.EGRESSPOLICYMODE_DENY_ALL),
+				AllowList: []koyeb.NetworkPolicyDestination{
+					{Cidr: toOpt("10.0.0.0/8")},
+				},
+			},
+			Mesh: &koyeb.Mesh{
+				Scope: toOpt(koyeb.MESHSCOPE_APP),
+			},
+		},
+	}
+
+	flattened := flattenDeploymentDefinition(definition)[0].(map[string]interface{})
+
+	networkPolicies, ok := flattened["network_policy"].([]interface{})
+	if !ok || len(networkPolicies) != 1 {
+		t.Fatalf("expected network_policy to be flattened, got %T", flattened["network_policy"])
+	}
+	networkPolicy := networkPolicies[0].(map[string]interface{})
+
+	egressSet, ok := networkPolicy["egress"].(*schema.Set)
+	if !ok {
+		t.Fatalf("expected egress to be flattened, got %T", networkPolicy["egress"])
+	}
+	egress := egressSet.List()[0].(map[string]interface{})
+	if egress["mode"] != "EGRESS_POLICY_MODE_DENY_ALL" {
+		t.Errorf("expected egress mode EGRESS_POLICY_MODE_DENY_ALL, got %v", egress["mode"])
+	}
+	allowList := egress["allow_list"].(*schema.Set).List()
+	if len(allowList) != 1 || allowList[0] != "10.0.0.0/8" {
+		t.Errorf("expected allow list [10.0.0.0/8], got %v", allowList)
+	}
+
+	meshSet, ok := networkPolicy["mesh"].(*schema.Set)
+	if !ok {
+		t.Fatalf("expected mesh to be flattened, got %T", networkPolicy["mesh"])
+	}
+	mesh := meshSet.List()[0].(map[string]interface{})
+	if mesh["scope"] != "MESH_SCOPE_APP" {
+		t.Errorf("expected mesh scope MESH_SCOPE_APP, got %v", mesh["scope"])
+	}
+}
+
+func TestExpandRoutesSetsSecurityPolicies(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"port": 3000,
+			"path": "/",
+			"security_policies": testSetOf(map[string]interface{}{
+				"basic_auths": testSetOf(map[string]interface{}{
+					"username": "user",
+					"password": "password",
+				}),
+				"api_keys": schema.NewSet(schema.HashString, []interface{}{"api-key"}),
+			}),
+		},
+	}
+
+	routes := expandRoutes(config)
+
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(routes))
+	}
+
+	if routes[0].SecurityPolicies == nil {
+		t.Fatal("expected security policies to be set")
+	}
+	basicAuths := routes[0].SecurityPolicies.BasicAuths
+	if len(basicAuths) != 1 {
+		t.Fatalf("expected 1 basic auth, got %d", len(basicAuths))
+	}
+	if basicAuths[0].GetUsername() != "user" {
+		t.Errorf("expected username user, got %q", basicAuths[0].GetUsername())
+	}
+	if basicAuths[0].GetPassword() != "password" {
+		t.Errorf("expected password to be set, got %q", basicAuths[0].GetPassword())
+	}
+	apiKeys := routes[0].SecurityPolicies.ApiKeys
+	if len(apiKeys) != 1 || apiKeys[0] != "api-key" {
+		t.Errorf("expected api keys [api-key], got %+v", apiKeys)
+	}
+}
+
+func TestFlattenRoutesSetsSecurityPolicies(t *testing.T) {
+	routes := []koyeb.DeploymentRoute{
+		{
+			Port: toOpt(int64(3000)),
+			Path: toOpt("/"),
+			SecurityPolicies: &koyeb.SecurityPolicies{
+				BasicAuths: []koyeb.BasicAuthPolicy{
+					{Username: toOpt("user"), Password: toOpt("password")},
+				},
+				ApiKeys: []string{"api-key"},
+			},
+		},
+	}
+
+	flattened := flattenRoutes(&routes)
+
+	route := flattened[0]
+	securityPoliciesSet, ok := route["security_policies"].(*schema.Set)
+	if !ok {
+		t.Fatalf("expected security_policies to be flattened, got %T", route["security_policies"])
+	}
+	securityPolicies := securityPoliciesSet.List()[0].(map[string]interface{})
+
+	basicAuths := securityPolicies["basic_auths"].(*schema.Set).List()
+	if len(basicAuths) != 1 {
+		t.Fatalf("expected 1 basic auth, got %d", len(basicAuths))
+	}
+	basicAuth := basicAuths[0].(map[string]interface{})
+	if basicAuth["username"] != "user" {
+		t.Errorf("expected username user, got %v", basicAuth["username"])
+	}
+	if basicAuth["password"] != "password" {
+		t.Errorf("expected password to be set, got %v", basicAuth["password"])
+	}
+
+	apiKeys := securityPolicies["api_keys"].(*schema.Set).List()
+	if len(apiKeys) != 1 || apiKeys[0] != "api-key" {
+		t.Errorf("expected api keys [api-key], got %v", apiKeys)
+	}
+}
+
+func TestExpandDeploymentDefinitionSetsArchive(t *testing.T) {
+	raw := testRawDefinition()
+	raw["archive"] = testSetOf(map[string]interface{}{
+		"id": "archive-id",
+		"buildpack": testSetOf(map[string]interface{}{
+			"build_command": "npm run build",
+			"run_command":   "npm start",
+			"privileged":    false,
+		}),
+	})
+
+	definition := expandDeploymentDefinition(raw)
+
+	if definition.Archive == nil {
+		t.Fatal("expected an archive source to be set")
+	}
+	if definition.Archive.GetId() != "archive-id" {
+		t.Errorf("expected archive id archive-id, got %q", definition.Archive.GetId())
+	}
+	if buildpack, ok := definition.Archive.GetBuildpackOk(); ok {
+		if buildpack.GetBuildCommand() != "npm run build" {
+			t.Errorf("expected build command npm run build, got %q", buildpack.GetBuildCommand())
+		}
+		if buildpack.GetRunCommand() != "npm start" {
+			t.Errorf("expected run command npm start, got %q", buildpack.GetRunCommand())
+		}
+	} else {
+		t.Error("expected a buildpack builder in the archive source")
+	}
+}
+
+func TestFlattenDeploymentDefinitionSetsArchive(t *testing.T) {
+	definition := &koyeb.DeploymentDefinition{
+		Archive: &koyeb.ArchiveSource{
+			Id: toOpt("archive-id"),
+			Buildpack: &koyeb.BuildpackBuilder{
+				BuildCommand: toOpt("npm run build"),
+				RunCommand:   toOpt("npm start"),
+			},
+		},
+	}
+
+	flattened := flattenDeploymentDefinition(definition)[0].(map[string]interface{})
+
+	archives, ok := flattened["archive"].([]interface{})
+	if !ok || len(archives) != 1 {
+		t.Fatalf("expected archive to be flattened, got %T", flattened["archive"])
+	}
+	archive := archives[0].(map[string]interface{})
+
+	if archive["id"] != "archive-id" {
+		t.Errorf("expected archive id archive-id, got %v", archive["id"])
+	}
+	buildpacks := archive["buildpack"].([]interface{})
+	if len(buildpacks) != 1 {
+		t.Fatalf("expected 1 buildpack, got %d", len(buildpacks))
+	}
+	buildpack := buildpacks[0].(map[string]interface{})
+	if buildpack["build_command"] != "npm run build" {
+		t.Errorf("expected build command npm run build, got %v", buildpack["build_command"])
+	}
+	if buildpack["run_command"] != "npm start" {
+		t.Errorf("expected run command npm start, got %v", buildpack["run_command"])
+	}
+}
+
+func TestProxyPortSchemaOnlyAllowsTCPProtocol(t *testing.T) {
+	protocol := proxyPortSchema().Schema["protocol"]
+
+	if _, errs := protocol.ValidateFunc("tcp", "protocol"); len(errs) != 0 {
+		t.Errorf("expected tcp to validate, got %v", errs)
+	}
+	if _, errs := protocol.ValidateFunc("http", "protocol"); len(errs) == 0 {
+		t.Error("expected http to be rejected: the API enum only allows tcp")
+	}
+}
+
+func TestFlattenNetworkPolicyEmptyProducesNoPhantomElement(t *testing.T) {
+	flattened := flattenNetworkPolicy(&koyeb.NetworkPolicy{})
+
+	if len(flattened) != 0 {
+		t.Errorf("expected no element for an empty network policy, got %v", flattened)
+	}
+}
+
+func TestExpandProxyPortsOmitsEmptyProtocol(t *testing.T) {
+	// The SDK zero-fills absent keys to "", so pin the production shape.
+	config := []interface{}{
+		map[string]interface{}{"port": 22, "protocol": ""},
+	}
+
+	proxyPorts := expandProxyPorts(config)
+
+	if len(proxyPorts) != 1 {
+		t.Fatalf("expected 1 proxy port, got %d", len(proxyPorts))
+	}
+	if proxyPorts[0].Protocol != nil {
+		t.Errorf("expected protocol to stay unset when omitted, got %q", proxyPorts[0].GetProtocol())
+	}
+}
+
+// testSetOf builds a *schema.Set from raw items for expand tests; the hash
+// function is irrelevant because the expand funcs only read List().
+func testSetOf(items ...interface{}) *schema.Set {
+	return schema.NewSet(func(_ interface{}) int { return 0 }, items)
+}
+
+func TestExpandVolumesMapsSchemaScopeKey(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"id":            "vol-id",
+			"path":          "/data",
+			"replica_index": 0,
+			"scope":         []interface{}{"was"},
+		},
+	}
+
+	volumes := expandVolumes(config)
+
+	if len(volumes) != 1 {
+		t.Fatalf("expected 1 volume, got %d", len(volumes))
+	}
+	if volumes[0].GetId() != "vol-id" || volumes[0].GetPath() != "/data" {
+		t.Errorf("expected id vol-id at /data, got %+v", volumes[0])
+	}
+	if scopes := volumes[0].GetScopes(); len(scopes) != 1 || scopes[0] != "was" {
+		t.Errorf("expected scopes [was], got %v", scopes)
+	}
+}
+
+func TestFlattenVolumesSetsScope(t *testing.T) {
+	volumes := []koyeb.DeploymentVolume{
+		{
+			Id:     toOpt("vol-id"),
+			Path:   toOpt("/data"),
+			Scopes: []string{"was"},
+		},
+	}
+
+	flattened := flattenVolumes(&volumes)
+
+	scope, ok := flattened[0]["scope"].([]string)
+	if !ok || len(scope) != 1 || scope[0] != "was" {
+		t.Errorf("expected scope [was], got %v (%T)", flattened[0]["scope"], flattened[0]["scope"])
+	}
+}
+
+func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
+	s := deploymentDefinitionSchena().Schema
+
+	// The API fills strategy and mesh with these values in every stored
+	// definition; without matching schema defaults the definition
+	// read-back produces a perpetual diff on the service pool resource.
+	if got := s["strategy"].Default; got != "DEPLOYMENT_STRATEGY_TYPE_ROLLING" {
+		t.Errorf("expected strategy default DEPLOYMENT_STRATEGY_TYPE_ROLLING, got %v", got)
+	}
+	if got := s["mesh"].Default; got != "DEPLOYMENT_MESH_AUTO" {
+		t.Errorf("expected mesh default DEPLOYMENT_MESH_AUTO, got %v", got)
+	}
+}

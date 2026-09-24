@@ -3,7 +3,10 @@ package koyeb
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -108,3 +111,40 @@ resource "koyeb_volume" "foobar" {
 	max_size   = 10
 	region     = "was"
 }`
+
+func TestDeleteVolumeWhenDetachedRetriesWhileAttached(t *testing.T) {
+	const volumeID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
+	deletes := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != "DELETE" {
+			// GetPersistentVolume: still attached until the second delete
+			attached := deletes < 2
+			serviceID := ""
+			if attached {
+				serviceID = "svc-id"
+			}
+			_, _ = w.Write([]byte(`{"volume":{"id":"` + volumeID + `","status":"PERSISTENT_VOLUME_STATUS_DELETING","service_id":"` + serviceID + `"}}`))
+			return
+		}
+		deletes++
+		if deletes < 3 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"status":400,"code":"failed_precondition","message":"Cannot delete a persistent volume still attached"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	if err := deleteVolumeWhenDetached(client, volumeID, 10*time.Millisecond); err != nil {
+		t.Fatalf("expected the delete to eventually succeed, got %s", err)
+	}
+	if deletes != 3 {
+		t.Errorf("expected 3 delete attempts, got %d", deletes)
+	}
+}

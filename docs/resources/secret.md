@@ -31,6 +31,7 @@ resource "koyeb_secret" "simple-secret" {
 - `azure_container_registry` (Block Set, Max: 1) The azure_container_registry configuration to use (see [below for nested schema](#nestedblock--azure_container_registry))
 - `digital_ocean_container_registry` (Block Set, Max: 1) The digital_ocean_container_registry configuration to use (see [below for nested schema](#nestedblock--digital_ocean_container_registry))
 - `docker_hub_registry` (Block Set, Max: 1) The docker_hub_registry configuration to use (see [below for nested schema](#nestedblock--docker_hub_registry))
+- `gcp_container_registry` (Block Set, Max: 1) The gcp_container_registry configuration to use (see [below for nested schema](#nestedblock--gcp_container_registry))
 - `github_registry` (Block Set, Max: 1) The github_registry configuration to use (see [below for nested schema](#nestedblock--github_registry))
 - `gitlab_registry` (Block Set, Max: 1) The gitlab_registry configuration to use (see [below for nested schema](#nestedblock--gitlab_registry))
 - `private_registry` (Block Set, Max: 1) The private_registry configuration to use (see [below for nested schema](#nestedblock--private_registry))
@@ -70,6 +71,15 @@ Required:
 
 - `password` (String, Sensitive) The registry password
 - `username` (String) The registry username
+
+
+<a id="nestedblock--gcp_container_registry"></a>
+### Nested Schema for `gcp_container_registry`
+
+Required:
+
+- `keyfile_content` (String, Sensitive) The base64-encoded content of the GCP service account keyfile (JSON) with access to the registry; read a keyfile from disk with the filebase64() function
+- `url` (String) The registry URL, e.g. gcr.io or a regional endpoint like eu.gcr.io
 
 
 <a id="nestedblock--github_registry"></a>

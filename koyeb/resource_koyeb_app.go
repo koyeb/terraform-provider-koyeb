@@ -25,6 +25,12 @@ func appSchema() map[string]*schema.Schema {
 			Description:  "The app name",
 			ValidateFunc: validation.StringLenBetween(3, 23),
 		},
+		"delete_when_empty": {
+			Type:        schema.TypeBool,
+			Optional:    true,
+			Computed:    true,
+			Description: "If set to true, the app is deleted once its last service is deleted",
+		},
 		"organization_id": {
 			Type:        schema.TypeString,
 			Computed:    true,
@@ -59,6 +65,7 @@ func resourceKoyebApp() *schema.Resource {
 
 		CreateContext: resourceKoyebAppCreate,
 		ReadContext:   resourceKoyebAppRead,
+		UpdateContext: resourceKoyebAppUpdate,
 		DeleteContext: resourceKoyebAppDelete,
 
 		Importer: &schema.ResourceImporter{
@@ -73,6 +80,14 @@ func setAppAttribute(d *schema.ResourceData, app koyeb.App) error {
 	d.SetId(app.GetId())
 	d.Set("name", app.GetName())
 	d.Set("organization_id", app.GetOrganizationId())
+	// The API omits the life cycle when the flag is false (omitempty),
+	// so always write the attribute: an absent value would fail state
+	// checks and leave the Computed half of Optional+Computed empty.
+	deleteWhenEmpty := false
+	if lifeCycle, ok := app.GetLifeCycleOk(); ok {
+		deleteWhenEmpty = lifeCycle.GetDeleteWhenEmpty()
+	}
+	d.Set("delete_when_empty", deleteWhenEmpty)
 	d.Set("domains", flattenDomains(&app.Domains, app.GetName()))
 	d.Set("updated_at", app.GetUpdatedAt().UTC().String())
 	d.Set("created_at", app.GetCreatedAt().UTC().String())
@@ -83,9 +98,16 @@ func setAppAttribute(d *schema.ResourceData, app koyeb.App) error {
 func resourceKoyebAppCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.AppsApi.CreateApp(context.Background()).App(koyeb.CreateApp{
+	createApp := koyeb.CreateApp{
 		Name: toOpt(d.Get("name").(string)),
-	}).Execute()
+		// Always send the flag: omitting it on a true->false change would
+		// leave the API value and the state permanently out of sync.
+		LifeCycle: &koyeb.AppLifeCycle{
+			DeleteWhenEmpty: toOpt(d.Get("delete_when_empty").(bool)),
+		},
+	}
+
+	res, resp, err := client.AppsApi.CreateApp(context.Background()).App(createApp).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error creating app: %s (%v %v)", err, resp, res)
@@ -93,6 +115,29 @@ func resourceKoyebAppCreate(ctx context.Context, d *schema.ResourceData, meta in
 
 	d.SetId(*res.App.Id)
 	log.Printf("[INFO] Created app name: %s", *res.App.Name)
+
+	return resourceKoyebAppRead(ctx, d, meta)
+}
+
+func resourceKoyebAppUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	client := meta.(*koyeb.APIClient)
+
+	updateApp := koyeb.UpdateApp{
+		Name: toOpt(d.Get("name").(string)),
+		// Always send the flag so an explicit false can turn it off again;
+		// GetOk would treat false as unset and silently skip the update.
+		LifeCycle: &koyeb.AppLifeCycle{
+			DeleteWhenEmpty: toOpt(d.Get("delete_when_empty").(bool)),
+		},
+	}
+
+	res, resp, err := client.AppsApi.UpdateApp(context.Background(), d.Id()).App(updateApp).Execute()
+
+	if err != nil {
+		return diag.Errorf("Error updating app: %s (%v %v)", err, resp, res)
+	}
+
+	log.Printf("[INFO] Updated app name: %s", *res.App.Name)
 
 	return resourceKoyebAppRead(ctx, d, meta)
 }

@@ -2,6 +2,7 @@ package koyeb
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
@@ -77,6 +79,7 @@ func TestAccKoyebSecret_Basic(t *testing.T) {
 		{"gitlab", "gitlab_registry", randomTestName()},
 		{"digitalocean", "digital_ocean_container_registry", randomTestName()},
 		{"private", "private_registry", randomTestName()},
+		{"gcp", "gcp_container_registry", randomTestName()},
 		// Uncomment when ready for Azure testing
 		// {"azure", "azure_container_registry", randomTestName()},
 	}
@@ -101,6 +104,109 @@ func TestAccKoyebSecret_Basic(t *testing.T) {
 				},
 			})
 		})
+	}
+}
+
+func TestExpandRegistryGCPContainerRegistry(t *testing.T) {
+	// The API stores the keyfile base64-encoded.
+	const keyfileContent = "eyJ0eXBlIjoic2VydmljZV9hY2NvdW50In0="
+
+	config := []interface{}{
+		map[string]interface{}{
+			"keyfile_content": keyfileContent,
+			"url":             "gcr.io",
+		},
+	}
+
+	expanded := expandRegistry(config, "gcp_container_registry")
+	if expanded == nil {
+		t.Fatal("expected gcp_container_registry to be expanded")
+	}
+
+	registry := expanded.(*koyeb.GCPContainerRegistryConfiguration)
+	if registry.GetKeyfileContent() != keyfileContent {
+		t.Errorf("expected keyfile_content to be set, got %q", registry.GetKeyfileContent())
+	}
+	if registry.GetUrl() != "gcr.io" {
+		t.Errorf("expected url %q, got %q", "gcr.io", registry.GetUrl())
+	}
+}
+
+func TestExpandRegistryHandlesAllRegistryTypes(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"username":        "user",
+			"password":        "password",
+			"url":             "https://registry.example.com",
+			"registry_name":   "my-registry",
+			"keyfile_content": `{}`,
+		},
+	}
+
+	// A registryTypes entry without a matching expandRegistry case would
+	// return nil and panic at create time on the type assertion.
+	for _, registryType := range registryTypes {
+		t.Run(registryType, func(t *testing.T) {
+			if expandRegistry(config, registryType) == nil {
+				t.Errorf("expected expandRegistry to handle %q", registryType)
+			}
+		})
+	}
+}
+
+func TestSecretSchemaHasGCPContainerRegistry(t *testing.T) {
+	s := secretSchema()
+
+	gcpRegistry, ok := s["gcp_container_registry"]
+	if !ok {
+		t.Fatal("expected gcp_container_registry in the secret schema")
+	}
+	if !gcpRegistry.Optional || gcpRegistry.MaxItems != 1 {
+		t.Errorf("expected gcp_container_registry to be optional with MaxItems 1, got Optional=%v MaxItems=%d", gcpRegistry.Optional, gcpRegistry.MaxItems)
+	}
+
+	elem := gcpRegistry.Elem.(*schema.Resource).Schema
+	for _, key := range []string{"keyfile_content", "url"} {
+		field, ok := elem[key]
+		if !ok {
+			t.Errorf("expected %q in the gcp_container_registry schema", key)
+			continue
+		}
+		if !field.Required {
+			t.Errorf("expected %q to be required", key)
+		}
+	}
+	if !elem["keyfile_content"].Sensitive {
+		t.Error("expected keyfile_content to be sensitive")
+	}
+}
+
+func TestSetSecretAttributeGCPContainerRegistry(t *testing.T) {
+	d := schema.TestResourceDataRaw(t, secretSchema(), map[string]interface{}{})
+
+	secret := koyeb.Secret{
+		Name:                 toOpt("test-secret"),
+		GcpContainerRegistry: &koyeb.GCPContainerRegistryConfiguration{},
+	}
+	secretValue := map[string]interface{}{
+		"gcp_keyfile_content": "eyJ0eXBlIjoic2VydmljZV9hY2NvdW50In0=",
+		"url":                 "gcr.io",
+	}
+
+	if err := setSecretAttribute(d, secret, secretValue); err != nil {
+		t.Fatalf("expected no error, got %s", err)
+	}
+
+	registries := d.Get("gcp_container_registry").(*schema.Set).List()
+	if len(registries) != 1 {
+		t.Fatalf("expected 1 gcp_container_registry element, got %d", len(registries))
+	}
+	registry := registries[0].(map[string]interface{})
+	if registry["keyfile_content"] != secretValue["gcp_keyfile_content"] {
+		t.Errorf("expected keyfile_content %q, got %v", secretValue["gcp_keyfile_content"], registry["keyfile_content"])
+	}
+	if registry["url"] != "gcr.io" {
+		t.Errorf("expected url %q, got %v", "gcr.io", registry["url"])
 	}
 }
 
@@ -234,6 +340,16 @@ func testAccKoyebSecretConfig(templateType, name, value, extraArgs string) strin
 					url      = "%s"
 				}
 			}`, name, value, value, extraArgs)
+	case "gcp_container_registry":
+		return fmt.Sprintf(`
+			resource "koyeb_secret" "foo" {
+				name  = "%s"
+				type  = "REGISTRY"
+				gcp_container_registry {
+					keyfile_content = "%s"
+					url             = "%s"
+				}
+			}`, name, base64.StdEncoding.EncodeToString([]byte(value)), extraArgs)
 	default:
 		return ""
 	}

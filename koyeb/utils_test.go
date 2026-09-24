@@ -110,3 +110,82 @@ func TestWaitForResourceStatusServicePoolTimesOutWhenStuck(t *testing.T) {
 		t.Fatalf("expected a timeout error for a stuck pool, got %v", err)
 	}
 }
+
+func TestWaitForResourceStatusSnapshotSatisfiesTargetStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"snapshot":{"id":"snap-uuid","status":"SNAPSHOT_STATUS_DELETED"}}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	err := waitForResourceStatus(
+		client.SnapshotsApi.GetSnapshot(context.Background(), "snap-uuid").Execute,
+		"Snapshot", []string{"SNAPSHOT_STATUS_DELETED", "SNAPSHOT_STATUS_DELETING"}, 1, false,
+	)
+	if err != nil {
+		t.Fatalf("expected the DELETED snapshot to satisfy the wait, got %s", err)
+	}
+}
+
+func TestWaitForResourceStatusSnapshotTimesOutWhenStuck(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"snapshot":{"id":"snap-uuid","status":"SNAPSHOT_STATUS_CREATING"}}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	err := waitForResourceStatus(
+		client.SnapshotsApi.GetSnapshot(context.Background(), "snap-uuid").Execute,
+		"Snapshot", []string{"SNAPSHOT_STATUS_DELETED", "SNAPSHOT_STATUS_DELETING"}, 0, false,
+	)
+	if err == nil || !strings.Contains(err.Error(), "resource failed to reach target status") {
+		t.Fatalf("expected a timeout error for a stuck snapshot, got %v", err)
+	}
+}
+
+func TestWaitForResourceStatusSnapshotTreats404AsGone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	err := waitForResourceStatus(
+		client.SnapshotsApi.GetSnapshot(context.Background(), "snap-uuid").Execute,
+		"Snapshot", []string{"SNAPSHOT_STATUS_DELETED", "SNAPSHOT_STATUS_DELETING"}, 1, false,
+	)
+	if err != nil {
+		t.Fatalf("expected a 404 to count as destroyed, got %s", err)
+	}
+}
+
+func TestWaitForResourceStatusAppSatisfiesTargetStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"app":{"id":"app-uuid","status":"DELETED"}}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	err := waitForResourceStatus(
+		client.AppsApi.GetApp(context.Background(), "app-uuid").Execute,
+		"App", []string{"DELETED", "DELETING"}, 1, false,
+	)
+	if err != nil {
+		t.Fatalf("expected the DELETED app to satisfy the wait, got %s", err)
+	}
+}

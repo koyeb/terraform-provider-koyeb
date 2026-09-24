@@ -2,12 +2,17 @@ package koyeb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
@@ -79,6 +84,15 @@ func TestAccKoyebApp_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet("koyeb_app.foobar", "domains.0.version"),
 				),
 			},
+			{
+				Config: fmt.Sprintf(testAccCheckKoyebAppConfig_delete_when_empty, appName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckKoyebAppExists("koyeb_app.foobar", &app),
+					resource.TestCheckResourceAttr("koyeb_app.foobar", "name", appName),
+					resource.TestCheckResourceAttr("koyeb_app.foobar", "delete_when_empty", "false"),
+					resource.TestCheckResourceAttrSet("koyeb_app.foobar", "id"),
+				),
+			},
 		},
 	})
 }
@@ -93,8 +107,8 @@ func testAccCheckKoyebAppDestroy(s *terraform.State) error {
 		}
 
 		err := waitForResourceStatus(client.AppsApi.GetApp(context.Background(), rs.Primary.ID).Execute, "App", targetStatus, 1, false)
-		if err == nil {
-			return fmt.Errorf("App still exists: %s ", err)
+		if err != nil {
+			return fmt.Errorf("App still exists: %s", err)
 		}
 	}
 
@@ -145,3 +159,143 @@ const testAccCheckKoyebAppConfig_basic = `
 resource "koyeb_app" "foobar" {
 	name       = "%s"
 }`
+
+func TestAppSchemaHasDeleteWhenEmpty(t *testing.T) {
+	deleteWhenEmpty, ok := appSchema()["delete_when_empty"]
+	if !ok {
+		t.Fatal("expected delete_when_empty in the app schema")
+	}
+	if !deleteWhenEmpty.Optional {
+		t.Error("expected delete_when_empty to be optional")
+	}
+	if !deleteWhenEmpty.Computed {
+		t.Error("expected delete_when_empty to be computed: the API read-back is what lets a true->false change converge")
+	}
+}
+
+func TestSetAppAttributeDeleteWhenEmpty(t *testing.T) {
+	d := schema.TestResourceDataRaw(t, appSchema(), map[string]interface{}{})
+
+	app := koyeb.App{
+		Id:        toOpt("app-id"),
+		Name:      toOpt("my-app"),
+		LifeCycle: &koyeb.AppLifeCycle{DeleteWhenEmpty: toOpt(true)},
+	}
+
+	if err := setAppAttribute(d, app); err != nil {
+		t.Fatalf("expected no error, got %s", err)
+	}
+
+	if d.Get("delete_when_empty").(bool) != true {
+		t.Errorf("expected delete_when_empty to be true, got %v", d.Get("delete_when_empty"))
+	}
+}
+
+const testAccCheckKoyebAppConfig_delete_when_empty = `
+resource "koyeb_app" "foobar" {
+	name              = "%s"
+	delete_when_empty = false
+}`
+
+func TestResourceKoyebAppUpdateSendsExplicitDeleteWhenEmptyFalse(t *testing.T) {
+	var updateBody map[string]interface{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &updateBody)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"app":{"id":"d290f1ee-6c54-4b01-90e6-d7015f3f7b1f","name":"my-app"}}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	d := schema.TestResourceDataRaw(t, appSchema(), map[string]interface{}{
+		"name":              "my-app",
+		"delete_when_empty": false,
+	})
+	d.SetId("d290f1ee-6c54-4b01-90e6-d7015f3f7b1f")
+
+	if diags := resourceKoyebAppUpdate(context.Background(), d, client); diags.HasError() {
+		t.Fatalf("expected no error, got %v", diags)
+	}
+
+	lifeCycle, ok := updateBody["life_cycle"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected life_cycle to be sent on update, got body %v", updateBody)
+	}
+	if lifeCycle["delete_when_empty"] != false {
+		t.Errorf("expected delete_when_empty false to be sent explicitly, got %v", lifeCycle["delete_when_empty"])
+	}
+}
+
+func TestSetAppAttributeWithoutLifeCycle(t *testing.T) {
+	d := schema.TestResourceDataRaw(t, appSchema(), map[string]interface{}{})
+
+	app := koyeb.App{
+		Id:   toOpt("app-id"),
+		Name: toOpt("my-app"),
+	}
+
+	if err := setAppAttribute(d, app); err != nil {
+		t.Fatalf("expected no error, got %s", err)
+	}
+
+	// GetOk treats an explicit false as unset, so assert presence through
+	// the raw state: the attribute must exist even when the API omits the
+	// life cycle (omitempty drops a false delete_when_empty).
+	if _, exists := d.GetOkExists("delete_when_empty"); !exists {
+		t.Error("expected delete_when_empty to be present in state even without a life cycle")
+	}
+	if d.Get("delete_when_empty").(bool) != false {
+		t.Errorf("expected delete_when_empty to default to false without a life cycle, got %v", d.Get("delete_when_empty"))
+	}
+}
+
+func TestResourceKoyebAppCreateSendsLifeCycle(t *testing.T) {
+	var createBody map[string]interface{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &createBody)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"app":{"id":"d290f1ee-6c54-4b01-90e6-d7015f3f7b1f","name":"my-app"}}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	d := schema.TestResourceDataRaw(t, appSchema(), map[string]interface{}{
+		"name":              "my-app",
+		"delete_when_empty": true,
+	})
+
+	if diags := resourceKoyebAppCreate(context.Background(), d, client); diags.HasError() {
+		t.Fatalf("expected no error, got %v", diags)
+	}
+
+	lifeCycle, ok := createBody["life_cycle"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected life_cycle to be sent on create, got body %v", createBody)
+	}
+	if lifeCycle["delete_when_empty"] != true {
+		t.Errorf("expected delete_when_empty true to be sent, got %v", lifeCycle["delete_when_empty"])
+	}
+}
+
+func TestDataSourceKoyebAppDeleteWhenEmptyIsReadOnly(t *testing.T) {
+	deleteWhenEmpty := dataSourceKoyebApp().Schema["delete_when_empty"]
+
+	if deleteWhenEmpty.Optional {
+		t.Error("expected delete_when_empty to not be configurable on the data source")
+	}
+	if !deleteWhenEmpty.Computed {
+		t.Error("expected delete_when_empty to be computed on the data source")
+	}
+}

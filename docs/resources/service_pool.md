@@ -72,14 +72,21 @@ Required:
 
 Optional:
 
+- `archive` (Block Set, Max: 1) The archive to deploy, as uploaded by `koyeb deploy` (see [below for nested schema](#nestedblock--definition--archive))
+- `config_files` (Block Set) The config files to mount in the service (see [below for nested schema](#nestedblock--definition--config_files))
+- `database` (Block Set, Max: 1) The database to provision for the service (only for services of type DATABASE) (see [below for nested schema](#nestedblock--definition--database))
 - `docker` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--docker))
 - `env` (Block Set) (see [below for nested schema](#nestedblock--definition--env))
 - `git` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git))
 - `health_checks` (Block Set) (see [below for nested schema](#nestedblock--definition--health_checks))
+- `mesh` (String) Whether the service joins the service mesh: DEPLOYMENT_MESH_AUTO, DEPLOYMENT_MESH_ENABLED or DEPLOYMENT_MESH_DISABLED
+- `network_policy` (Block Set, Max: 1) The network policy applied to the service (see [below for nested schema](#nestedblock--definition--network_policy))
 - `ports` (Block Set) (see [below for nested schema](#nestedblock--definition--ports))
+- `proxy_ports` (Block Set) The proxy ports to expose on the service (available for services of type WEB only) (see [below for nested schema](#nestedblock--definition--proxy_ports))
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
 - `skip_cache` (Boolean) If set to true, the service will be deployed without using the cache
-- `type` (String) The service type, either WEB or WORKER (default WEB)
+- `strategy` (String) The deployment strategy used when updating the service: DEPLOYMENT_STRATEGY_TYPE_ROLLING, DEPLOYMENT_STRATEGY_TYPE_BLUE_GREEN or DEPLOYMENT_STRATEGY_TYPE_IMMEDIATE
+- `type` (String) The service type, either WEB, WORKER or DATABASE (default WEB)
 - `volumes` (Block Set) The volumes to attach and mount to the service (see [below for nested schema](#nestedblock--definition--volumes))
 
 <a id="nestedblock--definition--instance_types"></a>
@@ -114,6 +121,7 @@ Optional:
 - `concurrent_requests` (Block Set) The number of concurrent requests across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--concurrent_requests))
 - `request_response_time` (Block Set) The average response time of requests across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--request_response_time))
 - `requests_per_second` (Block Set) The number of concurrent requests per second across all Instances of your Service within a region (see [below for nested schema](#nestedblock--definition--scalings--targets--requests_per_second))
+- `sleep_idle_delay` (Block Set) The delays in seconds after which a service which received 0 request is put to light sleep and deep sleep (see [below for nested schema](#nestedblock--definition--scalings--targets--sleep_idle_delay))
 
 <a id="nestedblock--definition--scalings--targets--average_cpu"></a>
 ### Nested Schema for `definition.scalings.targets.average_cpu`
@@ -155,6 +163,108 @@ Required:
 - `value` (Number) The target value of the autoscaling target
 
 
+<a id="nestedblock--definition--scalings--targets--sleep_idle_delay"></a>
+### Nested Schema for `definition.scalings.targets.sleep_idle_delay`
+
+Optional:
+
+- `deep_sleep_value` (Number) Delay in seconds after which a service which received 0 request is put to deep sleep
+- `light_sleep_value` (Number) Delay in seconds after which a service which received 0 request is put to light sleep
+
+
+
+
+<a id="nestedblock--definition--archive"></a>
+### Nested Schema for `definition.archive`
+
+Required:
+
+- `id` (String) The archive ID to deploy, as uploaded by `koyeb deploy`
+
+Optional:
+
+- `buildpack` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--archive--buildpack))
+- `dockerfile` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--archive--dockerfile))
+
+<a id="nestedblock--definition--archive--buildpack"></a>
+### Nested Schema for `definition.archive.buildpack`
+
+Optional:
+
+- `build_command` (String) The command to build your application during the build phase. If your application does not require a build command, leave this field empty
+- `privileged` (Boolean) When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.
+- `run_command` (String) The command to run your application once the built is completed
+
+
+<a id="nestedblock--definition--archive--dockerfile"></a>
+### Nested Schema for `definition.archive.dockerfile`
+
+Optional:
+
+- `args` (List of String) The arguments to pass to the Docker command
+- `command` (String) Override the command to execute on the container
+- `dockerfile` (String) The location of your Dockerfile relative to the work directory. If not set, the work directory defaults to the root of the repository.
+- `entrypoint` (List of String) Override the default entrypoint to execute on the container
+- `privileged` (Boolean) When enabled, the service container will run in privileged mode. This advanced feature is useful to get advanced system privileges.
+- `target` (String) Target build stage: If your Dockerfile contains multi-stage builds, you can choose the target stage to build and deploy by entering its name
+
+
+
+<a id="nestedblock--definition--config_files"></a>
+### Nested Schema for `definition.config_files`
+
+Required:
+
+- `content` (String) The content of the config file
+- `path` (String) The absolute path where the config file is mounted in the service
+
+Optional:
+
+- `permissions` (String) The file permissions, e.g. 0644
+
+
+<a id="nestedblock--definition--database"></a>
+### Nested Schema for `definition.database`
+
+Optional:
+
+- `neon_postgres` (Block Set, Max: 1) The Neon PostgreSQL database to provision (see [below for nested schema](#nestedblock--definition--database--neon_postgres))
+
+<a id="nestedblock--definition--database--neon_postgres"></a>
+### Nested Schema for `definition.database.neon_postgres`
+
+Optional:
+
+- `databases` (Block Set) The databases to create in the PostgreSQL instance (see [below for nested schema](#nestedblock--definition--database--neon_postgres--databases))
+- `instance_type` (String) The instance type of the database (free, small, medium or large)
+- `pg_version` (Number) The PostgreSQL version
+- `region` (String) The region where the database is deployed
+- `roles` (Block Set) The roles to create in the PostgreSQL instance (see [below for nested schema](#nestedblock--definition--database--neon_postgres--roles))
+
+<a id="nestedblock--definition--database--neon_postgres--databases"></a>
+### Nested Schema for `definition.database.neon_postgres.databases`
+
+Required:
+
+- `name` (String) The database name
+
+Optional:
+
+- `owner` (String) The role owning the database
+
+
+<a id="nestedblock--definition--database--neon_postgres--roles"></a>
+### Nested Schema for `definition.database.neon_postgres.roles`
+
+Required:
+
+- `name` (String) The role name
+
+Optional:
+
+- `secret` (String) The name of the managed secret holding the role password
+
+
 
 
 <a id="nestedblock--definition--docker"></a>
@@ -192,14 +302,16 @@ Optional:
 
 Required:
 
-- `branch` (String) The GitHub branch to deploy
 - `repository` (String) The GitHub repository to deploy
 
 Optional:
 
+- `branch` (String) The GitHub branch to deploy. Exactly one of branch, tag or sha must be set.
 - `buildpack` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git--buildpack))
 - `dockerfile` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git--dockerfile))
 - `no_deploy_on_push` (Boolean) If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch
+- `sha` (String) The git commit SHA to deploy. Exactly one of branch, tag or sha must be set.
+- `tag` (String) The GitHub repository tag to deploy. Exactly one of branch, tag or sha must be set.
 - `workdir` (String) The directory where your source code is located. If not set, the work directory defaults to the root of the repository.
 
 <a id="nestedblock--definition--git--buildpack"></a>
@@ -273,6 +385,33 @@ Required:
 
 
 
+<a id="nestedblock--definition--network_policy"></a>
+### Nested Schema for `definition.network_policy`
+
+Optional:
+
+- `egress` (Block Set, Max: 1) The egress policy of the service (see [below for nested schema](#nestedblock--definition--network_policy--egress))
+- `mesh` (Block Set, Max: 1) Which services can reach this service through the mesh (see [below for nested schema](#nestedblock--definition--network_policy--mesh))
+
+<a id="nestedblock--definition--network_policy--egress"></a>
+### Nested Schema for `definition.network_policy.egress`
+
+Optional:
+
+- `allow_list` (Set of String) The allowed destinations when the egress mode is EGRESS_POLICY_MODE_DENY_ALL, as IPv4 or IPv6 CIDRs
+- `mode` (String) The egress mode: EGRESS_POLICY_MODE_DEFAULT or EGRESS_POLICY_MODE_DENY_ALL
+
+
+<a id="nestedblock--definition--network_policy--mesh"></a>
+### Nested Schema for `definition.network_policy.mesh`
+
+Optional:
+
+- `name` (String) A custom mesh name, required when the scope is MESH_SCOPE_CUSTOM
+- `scope` (String) The mesh scope: MESH_SCOPE_UNSPECIFIED, MESH_SCOPE_ORGANIZATION, MESH_SCOPE_WORKSPACE, MESH_SCOPE_APP or MESH_SCOPE_CUSTOM
+
+
+
 <a id="nestedblock--definition--ports"></a>
 ### Nested Schema for `definition.ports`
 
@@ -282,6 +421,18 @@ Required:
 - `protocol` (String) The protocol used by your service
 
 
+<a id="nestedblock--definition--proxy_ports"></a>
+### Nested Schema for `definition.proxy_ports`
+
+Required:
+
+- `port` (Number) The port exposed by the proxy port
+
+Optional:
+
+- `protocol` (String) The protocol used by the proxy port
+
+
 <a id="nestedblock--definition--routes"></a>
 ### Nested Schema for `definition.routes`
 
@@ -289,6 +440,28 @@ Required:
 
 - `path` (String) Path specifies a route by HTTP path prefix. Paths must start with / and must be unique within the app
 - `port` (Number) The internal port on which this service's run command will listen
+
+Optional:
+
+- `security_policies` (Block Set, Max: 1) The security policies applied to the route (see [below for nested schema](#nestedblock--definition--routes--security_policies))
+
+<a id="nestedblock--definition--routes--security_policies"></a>
+### Nested Schema for `definition.routes.security_policies`
+
+Optional:
+
+- `api_keys` (Set of String) The API keys protecting the route
+- `basic_auths` (Block Set) The basic auth credentials protecting the route (see [below for nested schema](#nestedblock--definition--routes--security_policies--basic_auths))
+
+<a id="nestedblock--definition--routes--security_policies--basic_auths"></a>
+### Nested Schema for `definition.routes.security_policies.basic_auths`
+
+Required:
+
+- `password` (String, Sensitive) The basic auth password
+- `username` (String) The basic auth username
+
+
 
 
 <a id="nestedblock--definition--volumes"></a>
