@@ -44,7 +44,8 @@ func testSweepVolume(string) error {
 		if strings.HasPrefix(v.GetName(), testNamePrefix) {
 			log.Printf("Destroying volume %s", v.GetName())
 
-			if _, _, err := client.PersistentVolumesApi.DeletePersistentVolume(context.Background(), v.GetId()).Execute(); err != nil {
+			// Services are swept first, but the detach is asynchronous.
+			if err := deleteVolumeWhenDetached(client, v.GetId(), 10*time.Second); err != nil {
 				return err
 			}
 		}
