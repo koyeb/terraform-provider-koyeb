@@ -3,6 +3,8 @@ package koyeb
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -11,6 +13,11 @@ import (
 )
 
 func TestAccDataSourceKoyebDatabase_Basic(t *testing.T) {
+	// See TestAccKoyebDatabase_Basic: one matrix version only.
+	if v := os.Getenv("TF_ACC_TF_VERSION"); v != "" && !strings.HasPrefix(v, "1.1") {
+		t.Skipf("skipping to stay within the organization's free instance quota (TF %s)", v)
+	}
+
 	var service koyeb.Service
 	databaseName := randomTestName()
 

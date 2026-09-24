@@ -17,6 +17,37 @@ func init() {
 		Name: "koyeb_snapshot",
 		F:    testSweepSnapshot,
 	})
+	resource.AddTestSweepers("koyeb_volume", &resource.Sweeper{
+		Name:         "koyeb_volume",
+		F:            testSweepVolume,
+		Dependencies: []string{"koyeb_service", "koyeb_snapshot"},
+	})
+}
+
+func testSweepVolume(string) error {
+	meta, err := sharedConfig()
+	if err != nil {
+		return err
+	}
+
+	client := meta.(*koyeb.APIClient)
+
+	res, _, err := client.PersistentVolumesApi.ListPersistentVolumes(context.Background()).Limit("100").Execute()
+	if err != nil {
+		return err
+	}
+
+	for _, v := range res.Volumes {
+		if strings.HasPrefix(v.GetName(), testNamePrefix) {
+			log.Printf("Destroying volume %s", v.GetName())
+
+			if _, _, err := client.PersistentVolumesApi.DeletePersistentVolume(context.Background(), v.GetId()).Execute(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func testSweepSnapshot(string) error {
@@ -192,7 +223,7 @@ func testAccCheckKoyebSnapshotExists(n string, snapshot *koyeb.Snapshot) resourc
 const testAccCheckKoyebSnapshotConfig_basic = `
 resource "koyeb_volume" "foobar" {
 	name     = "%s"
-	max_size = 10
+	max_size = 1
 	region   = "was"
 }
 

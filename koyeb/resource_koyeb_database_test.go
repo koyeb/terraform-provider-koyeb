@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -124,6 +125,13 @@ func TestDatabaseDataSourceSchemaContract(t *testing.T) {
 }
 
 func TestAccKoyebDatabase_Basic(t *testing.T) {
+	// The free Neon instance quota of the CI organization fits a single
+	// database, and the Terraform matrix runs this suite on three versions
+	// in parallel; run on one version only.
+	if v := os.Getenv("TF_ACC_TF_VERSION"); v != "" && !strings.HasPrefix(v, "1.1") {
+		t.Skipf("skipping to stay within the organization's free instance quota (TF %s)", v)
+	}
+
 	var service koyeb.Service
 	databaseName := randomTestName()
 

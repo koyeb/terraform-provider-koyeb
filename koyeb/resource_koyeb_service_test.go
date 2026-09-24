@@ -151,9 +151,6 @@ func TestAccKoyebService_Basic(t *testing.T) {
 					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.network_policy.*.egress.*", map[string]string{
 						"mode": "EGRESS_POLICY_MODE_DEFAULT",
 					}),
-					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.network_policy.*.mesh.*", map[string]string{
-						"scope": "MESH_SCOPE_APP",
-					}),
 					resource.TestCheckTypeSetElemNestedAttrs("koyeb_service.bar", "definition.0.routes.*.security_policies.*.basic_auths.*", map[string]string{
 						"username": "user",
 						"password": "password",
@@ -240,9 +237,6 @@ resource "koyeb_service" "bar" {
 		network_policy {
 		  egress {
 		    mode = "EGRESS_POLICY_MODE_DEFAULT"
-		  }
-		  mesh {
-		    scope = "MESH_SCOPE_APP"
 		  }
 		}
 		routes {

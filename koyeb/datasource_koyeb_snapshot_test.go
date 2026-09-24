@@ -19,7 +19,7 @@ func TestAccDataSourceKoyebSnapshot_Basic(t *testing.T) {
 	resourceConfig := fmt.Sprintf(`
 resource "koyeb_volume" "foobar" {
 	name     = "%s"
-	max_size = 10
+	max_size = 1
 	region   = "was"
 }
 
