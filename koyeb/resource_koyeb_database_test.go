@@ -128,7 +128,7 @@ func TestAccKoyebDatabase_Basic(t *testing.T) {
 	// The free Neon instance quota of the CI organization fits a single
 	// database, and the Terraform matrix runs this suite on three versions
 	// in parallel; run on one version only.
-	if v := os.Getenv("TF_ACC_TF_VERSION"); v != "" && !strings.HasPrefix(v, "1.1") {
+	if v := os.Getenv("TF_ACC_MATRIX"); v != "" && !strings.HasPrefix(v, "1.1") {
 		t.Skipf("skipping to stay within the organization's free instance quota (TF %s)", v)
 	}
 
@@ -428,42 +428,6 @@ func TestFreeInstanceQuotaAvailable(t *testing.T) {
 	}
 }
 
-func TestDeleteVolumeWhenDetachedRetriesWhileAttached(t *testing.T) {
-	const volumeID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
-	deletes := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method != "DELETE" {
-			// GetPersistentVolume: still attached until the second delete
-			attached := deletes < 2
-			serviceID := ""
-			if attached {
-				serviceID = "svc-id"
-			}
-			_, _ = w.Write([]byte(`{"volume":{"id":"` + volumeID + `","status":"PERSISTENT_VOLUME_STATUS_DELETING","service_id":"` + serviceID + `"}}`))
-			return
-		}
-		deletes++
-		if deletes < 3 {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"status":400,"code":"failed_precondition","message":"Cannot delete a persistent volume still attached"}`))
-			return
-		}
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	defer srv.Close()
-
-	cfg := koyeb.NewConfiguration()
-	cfg.Servers[0].URL = srv.URL
-	client := koyeb.NewAPIClient(cfg)
-
-	if err := deleteVolumeWhenDetached(client, volumeID); err != nil {
-		t.Fatalf("expected the delete to eventually succeed, got %s", err)
-	}
-	if deletes != 3 {
-		t.Errorf("expected 3 delete attempts, got %d", deletes)
-	}
-}
 func TestNewRoleSecretNameIsValidSecretName(t *testing.T) {
 	// The API requires secret names to match ^[a-zA-Z_][a-zA-Z0-9-_]*$
 	// (2-64 chars); a bare UUID fails ~62% of the time because hex

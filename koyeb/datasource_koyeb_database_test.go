@@ -14,7 +14,7 @@ import (
 
 func TestAccDataSourceKoyebDatabase_Basic(t *testing.T) {
 	// See TestAccKoyebDatabase_Basic: one matrix version only.
-	if v := os.Getenv("TF_ACC_TF_VERSION"); v != "" && !strings.HasPrefix(v, "1.1") {
+	if v := os.Getenv("TF_ACC_MATRIX"); v != "" && !strings.HasPrefix(v, "1.1") {
 		t.Skipf("skipping to stay within the organization's free instance quota (TF %s)", v)
 	}
 

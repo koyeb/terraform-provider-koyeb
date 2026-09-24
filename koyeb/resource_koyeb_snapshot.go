@@ -2,7 +2,10 @@ package koyeb
 
 import (
 	"context"
+	"errors"
 	"log"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -86,6 +89,35 @@ func resourceKoyebSnapshot() *schema.Resource {
 	}
 }
 
+// deleteSnapshotWhenUploaded deletes a snapshot, tolerating the window
+// where it is still being uploaded: the API rejects the delete with
+// failed_precondition until the upload completes.
+func deleteSnapshotWhenUploaded(client *koyeb.APIClient, id string) error {
+	const attempts = 30
+	const interval = 10 * time.Second
+
+	for i := 0; i < attempts; i++ {
+		_, resp, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), id).Execute()
+		if err == nil {
+			return nil
+		}
+		if resp == nil || resp.StatusCode != 400 || !isStillUploadingError(err) {
+			return err
+		}
+		time.Sleep(interval)
+	}
+
+	return errors.New("snapshot is still being uploaded after waiting")
+}
+
+func isStillUploadingError(err error) bool {
+	var apiErr *koyeb.GenericOpenAPIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return strings.Contains(string(apiErr.Body()), "being uploaded")
+}
+
 func setSnapshotAttribute(d *schema.ResourceData, snapshot koyeb.Snapshot) error {
 	d.SetId(snapshot.GetId())
 	d.Set("name", snapshot.GetName())
@@ -158,10 +190,8 @@ func resourceKoyebSnapshotUpdate(ctx context.Context, d *schema.ResourceData, me
 func resourceKoyebSnapshotDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), d.Id()).Execute()
-
-	if err != nil {
-		return diag.Errorf("Error deleting snapshot: %s (%v %v)", err, resp, res)
+	if err := deleteSnapshotWhenUploaded(client, d.Id()); err != nil {
+		return diag.FromErr(err)
 	}
 
 	d.SetId("")

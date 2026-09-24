@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -195,19 +197,21 @@ func testAccCheckKoyebServiceHealthy(n string) resource.TestCheckFunc {
 
 		client := testAccProvider.Meta().(*koyeb.APIClient)
 
+		var lastStatus koyeb.ServiceStatus
 		for i := 0; i < 30; i++ {
 			res, _, err := client.ServicesApi.GetService(context.Background(), rs.Primary.ID).Execute()
 			if err != nil {
 				return err
 			}
 			service := res.GetService()
+			lastStatus = service.GetStatus()
 			if service.GetStatus() == koyeb.SERVICESTATUS_HEALTHY {
 				return nil
 			}
 			time.Sleep(10 * time.Second)
 		}
 
-		return fmt.Errorf("service %s did not become healthy in time", n)
+		return fmt.Errorf("service %s did not become healthy in time, last status %s", n, lastStatus)
 	}
 }
 
@@ -342,3 +346,34 @@ resource "koyeb_snapshot" "foobar" {
 	  koyeb_service.bar
 	]
 }`
+
+func TestDeleteSnapshotWhenUploadedRetriesWhileUploading(t *testing.T) {
+	const snapshotID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
+	deletes := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != "DELETE" {
+			_, _ = w.Write([]byte(`{"snapshot":{"id":"` + snapshotID + `","status":"SNAPSHOT_STATUS_CREATING"}}`))
+			return
+		}
+		deletes++
+		if deletes < 2 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"status":400,"code":"failed_precondition","message":"cannot delete a snapshot being uploaded"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	if err := deleteSnapshotWhenUploaded(client, snapshotID); err != nil {
+		t.Fatalf("expected the delete to eventually succeed, got %s", err)
+	}
+	if deletes != 2 {
+		t.Errorf("expected 2 delete attempts, got %d", deletes)
+	}
+}

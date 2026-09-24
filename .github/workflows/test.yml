@@ -20,7 +20,7 @@ on:
 # commit; cancel the duplicate instead of racing two acceptance suites
 # against the same organization.
 concurrency:
-  group: Tests-${{ github.ref }}
+  group: Tests-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 jobs:
   # ensure the code builds...
@@ -130,6 +130,7 @@ jobs:
         timeout-minutes: 10
         env:
           TF_ACC: "1"
+          TF_ACC_MATRIX: ${{ matrix.terraform }}
 
           # Set whatever additional acceptance test env vars here. You can
           # optionally use data from your repository secrets using the

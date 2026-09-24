@@ -3,6 +3,7 @@ package koyeb
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -205,7 +206,7 @@ func resourceKoyebVolumeUpdate(ctx context.Context, d *schema.ResourceData, meta
 func resourceKoyebVolumeDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	if err := deleteVolumeWhenDetached(client, d.Id()); err != nil {
+	if err := deleteVolumeWhenDetached(client, d.Id(), 10*time.Second); err != nil {
 		return diag.FromErr(err)
 	}
 
