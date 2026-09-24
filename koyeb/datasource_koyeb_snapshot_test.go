@@ -3,6 +3,8 @@ package koyeb
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -11,6 +13,11 @@ import (
 )
 
 func TestAccDataSourceKoyebSnapshot_Basic(t *testing.T) {
+	// See TestAccKoyebSnapshot_Basic: one matrix version only.
+	if v := os.Getenv("TF_ACC_MATRIX"); v != "" && !strings.HasPrefix(v, "1.1") {
+		t.Skipf("skipping to limit concurrent volume deployments (TF %s)", v)
+	}
+
 	var snapshot koyeb.Snapshot
 	volumeName := randomTestName()
 	appName := randomTestName()

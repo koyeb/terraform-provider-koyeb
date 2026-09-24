@@ -179,6 +179,25 @@ func TestAccKoyebDatabase_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr("koyeb_database.foobar", "db_name", "koyebdb2"),
 				),
 			},
+			{
+				// The data source shares the same database: a second one would
+				// race the organization's single free instance quota.
+				Config: fmt.Sprintf(testAccCheckKoyebDatabaseConfig_update, databaseName) + `
+data "koyeb_database" "bar" {
+	name = koyeb_database.foobar.name
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("data.koyeb_database.bar", "name", databaseName),
+					resource.TestCheckResourceAttrSet("data.koyeb_database.bar", "id"),
+					resource.TestCheckResourceAttrSet("data.koyeb_database.bar", "app_id"),
+					resource.TestCheckResourceAttrSet("data.koyeb_database.bar", "organization_id"),
+					resource.TestCheckResourceAttrSet("data.koyeb_database.bar", "status"),
+					resource.TestCheckResourceAttrSet("data.koyeb_database.bar", "version"),
+					resource.TestCheckResourceAttrSet("data.koyeb_database.bar", "updated_at"),
+					resource.TestCheckResourceAttrSet("data.koyeb_database.bar", "created_at"),
+				),
+			},
 		},
 	})
 }

@@ -97,7 +97,7 @@ jobs:
       - build
       - sweep
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -127,7 +127,7 @@ jobs:
           go mod download
 
       - name: TF acceptance tests
-        timeout-minutes: 10
+        timeout-minutes: 15
         env:
           TF_ACC: "1"
           TF_ACC_MATRIX: ${{ matrix.terraform }}
