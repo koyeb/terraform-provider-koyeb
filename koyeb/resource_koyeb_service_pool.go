@@ -4,11 +4,16 @@ import (
 	"context"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
+
+// Readiness budget for created and updated pools; a variable so tests
+// can shorten it.
+var servicePoolReadinessTimeout = 5 * time.Minute
 
 func servicePoolSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
@@ -141,6 +146,12 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 	d.SetId(pool.GetId())
 	log.Printf("[INFO] Created service pool name: %s", pool.GetName())
 
+	// Pools prewarm asynchronously: apply should only report success once
+	// the pool, not just the API call, is READY.
+	if err := waitForResourceStatus(ctx, client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute, "ServicePool", []string{"READY"}, servicePoolReadinessTimeout, true); err != nil {
+		return diag.Errorf("Error waiting for service pool to be ready: %s", err)
+	}
+
 	return resourceKoyebServicePoolRead(ctx, d, meta)
 }
 
@@ -195,6 +206,10 @@ func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData,
 
 	pool := res.GetServicePool()
 	log.Printf("[INFO] Updated service pool name: %s", pool.GetName())
+
+	if err := waitForResourceStatus(ctx, client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute, "ServicePool", []string{"READY"}, servicePoolReadinessTimeout, true); err != nil {
+		return diag.Errorf("Error waiting for service pool to be ready: %s", err)
+	}
 
 	return resourceKoyebServicePoolRead(ctx, d, meta)
 }

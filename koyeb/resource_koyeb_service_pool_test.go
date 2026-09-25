@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -579,5 +580,143 @@ func TestResourceKoyebServicePoolDeleteErrorsOnAPIError(t *testing.T) {
 	}
 	if got := d.Id(); got != "pool-uuid" {
 		t.Errorf("expected the pool ID to be preserved after a failed delete, got %q", got)
+	}
+}
+
+// shortenPoolWaits collapses the readiness poll interval and timeout so
+// wait tests run in milliseconds; callers must defer the restore.
+func shortenPoolWaits(t *testing.T) {
+	t.Helper()
+	originalInterval := waitRetryInterval
+	originalTimeout := servicePoolReadinessTimeout
+	waitRetryInterval = 5 * time.Millisecond
+	servicePoolReadinessTimeout = 250 * time.Millisecond
+	t.Cleanup(func() {
+		waitRetryInterval = originalInterval
+		servicePoolReadinessTimeout = originalTimeout
+	})
+}
+
+// poolWaitTestServer serves a create/update reply and a GetServicePool that
+// reports PROVISIONING on the first poll and the given status afterwards.
+func poolWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *int32) {
+	t.Helper()
+	var gets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/service_pools", "PUT /v1/service_pools/pool-uuid":
+			_, _ = w.Write([]byte(`{"service_pool":{"id":"pool-uuid","name":"my-pool","size":1}}`))
+		case "GET /v1/service_pools/pool-uuid":
+			status := "PROVISIONING"
+			if n := atomic.AddInt32(&gets, 1); n > 1 {
+				status = finalStatus
+			}
+			_, _ = w.Write([]byte(`{"service_pool":{"id":"pool-uuid","name":"my-pool","size":1,` +
+				`"ready_count":1,"status":"` + status + `","organization_id":"org-id","workspace_id":"ws-id",` +
+				`"generation":"1","messages":[],"created_at":"2026-09-18T13:00:00Z","updated_at":"2026-09-18T13:00:00Z"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv, &gets
+}
+
+func TestResourceKoyebServicePoolCreateWaitsForPoolReady(t *testing.T) {
+	shortenPoolWaits(t)
+	srv, gets := poolWaitTestServer(t, "READY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, servicePoolSchema(), map[string]interface{}{
+		"name": "my-pool",
+		"size": 1,
+		"definition": []interface{}{
+			map[string]interface{}{
+				"name": "pool",
+				"docker": []interface{}{
+					map[string]interface{}{"image": "koyeb/demo"},
+				},
+			},
+		},
+	})
+
+	diags := resourceKoyebServicePoolCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "READY" {
+		t.Errorf("expected the create to return a READY pool, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the create to poll GetServicePool at least twice, got %d polls", n)
+	}
+}
+
+func TestResourceKoyebServicePoolCreateFailsWhenPoolNeverReady(t *testing.T) {
+	shortenPoolWaits(t)
+	srv, _ := poolWaitTestServer(t, "PROVISIONING")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, servicePoolSchema(), map[string]interface{}{
+		"name": "my-pool",
+		"size": 1,
+		"definition": []interface{}{
+			map[string]interface{}{
+				"name": "pool",
+				"docker": []interface{}{
+					map[string]interface{}{"image": "koyeb/demo"},
+				},
+			},
+		},
+	})
+
+	diags := resourceKoyebServicePoolCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "Error waiting for service pool") {
+		t.Errorf("expected a wait-failure error, got: %s", diags[0].Summary)
+	}
+}
+
+func TestResourceKoyebServicePoolUpdateWaitsForPoolReady(t *testing.T) {
+	shortenPoolWaits(t)
+	srv, gets := poolWaitTestServer(t, "READY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	state := &terraform.InstanceState{
+		ID: "pool-uuid",
+		Attributes: map[string]string{
+			"name":                        "my-pool",
+			"size":                        "1",
+			"definition.#":                "1",
+			"definition.0.name":           "pool",
+			"definition.0.docker.#":       "1",
+			"definition.0.docker.0.image": "koyeb/demo",
+		},
+	}
+	d := resourceKoyebServicePool().Data(state)
+
+	diags := resourceKoyebServicePoolUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "READY" {
+		t.Errorf("expected the update to return a READY pool, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the update to poll GetServicePool at least twice, got %d polls", n)
 	}
 }
