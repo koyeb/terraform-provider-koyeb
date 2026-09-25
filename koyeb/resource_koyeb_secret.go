@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 const (
@@ -346,12 +345,11 @@ func resourceKoyebSecretCreate(ctx context.Context, d *schema.ResourceData, meta
 
 func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	secretMapper := mapper.Secret()
+	resolver := newIDResolver(client)
 	var secretId string
 
 	if d.Id() != "" {
-		id, err := secretMapper.ResolveID(d.Id())
+		id, err := resolver.Secret(ctx, d.Id())
 
 		if err != nil {
 			return diag.Errorf("Error retrieving secret: %s", err)

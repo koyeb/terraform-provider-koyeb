@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func appSchema() map[string]*schema.Schema {
@@ -144,12 +143,11 @@ func resourceKoyebAppUpdate(ctx context.Context, d *schema.ResourceData, meta in
 
 func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	appMapper := mapper.App()
+	resolver := newIDResolver(client)
 	var appId string
 
 	if d.Id() != "" {
-		id, err := appMapper.ResolveID(d.Id())
+		id, err := resolver.App(ctx, d.Id())
 
 		if err != nil {
 			return diag.Errorf("Error retrieving app: %s", err)

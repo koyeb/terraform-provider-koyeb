@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func databaseDataSourceSchema() map[string]*schema.Schema {
@@ -65,14 +64,13 @@ func dataSourceKoyebDatabase() *schema.Resource {
 func dataSourceKoyebDatabaseRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	mapper := idmapper.NewMapper(context.Background(), client)
-	databaseMapper := mapper.Database()
+	resolver := newIDResolver(client)
 
 	// A database created by the koyeb_database resource (or the CLI
 	// `koyeb db create NAME`) lives in an app and a service both named
 	// after the database, so the mapper key is NAME/NAME.
 	name := d.Get("name").(string)
-	id, err := databaseMapper.ResolveID(name + "/" + name)
+	id, err := resolver.Database(ctx, name+"/"+name)
 	if err != nil {
 		return diag.Errorf("Error retrieving database: %s", err)
 	}

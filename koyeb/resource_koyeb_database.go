@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func databaseSchema() map[string]*schema.Schema {
@@ -126,7 +125,7 @@ func setDatabaseAttribute(d *schema.ResourceData, service koyeb.Service) error {
 
 func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
+	resolver := newIDResolver(client)
 
 	_, _, err := client.AppsApi.CreateApp(context.Background()).App(koyeb.CreateApp{
 		Name: toOpt(d.Get("name").(string)),
@@ -135,7 +134,7 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 		return diag.Errorf("Error creating the database app: %s", err)
 	}
 
-	appID, err := mapper.App().ResolveID(d.Get("name").(string))
+	appID, err := resolver.App(ctx, d.Get("name").(string))
 	if err != nil {
 		return diag.Errorf("Error resolving the database app: %s", err)
 	}
@@ -178,10 +177,9 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 
 func resourceKoyebDatabaseRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	serviceMapper := mapper.Service()
+	resolver := newIDResolver(client)
 
-	databaseId, err := serviceMapper.ResolveID(d.Id())
+	databaseId, err := resolver.Service(ctx, d.Id())
 	if err != nil {
 		return diag.Errorf("Error retrieving database: %s", err)
 	}

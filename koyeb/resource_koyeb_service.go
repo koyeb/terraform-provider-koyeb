@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func serviceSchema() map[string]*schema.Schema {
@@ -168,12 +167,11 @@ func setServiceAttribute(
 
 func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	appMapper := mapper.App()
+	resolver := newIDResolver(client)
 	var appId string
 
 	if d.Get("app_name").(string) != "" {
-		id, err := appMapper.ResolveID(d.Get("app_name").(string))
+		id, err := resolver.App(ctx, d.Get("app_name").(string))
 		if err != nil {
 			return diag.Errorf("Error creating service: %s", err)
 		}
@@ -205,12 +203,11 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 
 func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	serviceMapper := mapper.Service()
+	resolver := newIDResolver(client)
 	var serviceId string
 
 	if d.Id() != "" {
-		id, err := serviceMapper.ResolveID(d.Id())
+		id, err := resolver.Service(ctx, d.Id())
 		if err != nil {
 			return diag.Errorf("Error retrieving service: %s", err)
 		}

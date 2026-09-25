@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func domainSchema() map[string]*schema.Schema {
@@ -164,12 +163,11 @@ func setDomainAttribute(
 
 func resourceKoyebDomainCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	appMapper := mapper.App()
+	resolver := newIDResolver(client)
 	var appId string
 
 	if d.Get("app_name").(string) != "" {
-		id, err := appMapper.ResolveID(d.Get("app_name").(string))
+		id, err := resolver.App(ctx, d.Get("app_name").(string))
 
 		if err != nil {
 			return diag.Errorf("Error creating domain: %s", err)
@@ -225,12 +223,11 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 
 func resourceKoyebDomainUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	appMapper := mapper.App()
+	resolver := newIDResolver(client)
 	var appId string
 
 	if d.Get("app_name").(string) != "" {
-		id, err := appMapper.ResolveID(d.Get("app_name").(string))
+		id, err := resolver.App(ctx, d.Get("app_name").(string))
 
 		if err != nil {
 			return diag.Errorf("Error creating domain: %s", err)

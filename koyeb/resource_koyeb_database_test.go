@@ -366,7 +366,7 @@ func TestResourceKoyebDatabaseReadResolvesShortID(t *testing.T) {
 			// the service mapper resolves app names for its compound keys
 			_, _ = w.Write([]byte(`{"apps":[{"id":"f19f2eaf-6d64-4a1c-b1d0-7015f3f7b1a","name":"my-app"}],"count":1}`))
 		case strings.HasSuffix(r.URL.Path, "/services") && r.Method == "GET":
-			// idmapper fetch: resolve the short ID to the service ID
+			// resolver listing: resolve the short ID to the service ID
 			_, _ = w.Write([]byte(`{"services":[{"id":"` + appID + `","name":"my-db","app_id":"f19f2eaf-6d64-4a1c-b1d0-7015f3f7b1a"}],"count":1}`))
 		case strings.Contains(r.URL.Path, appID):
 			_, _ = w.Write([]byte(`{"service":{"id":"` + appID + `","name":"my-db"}}`))

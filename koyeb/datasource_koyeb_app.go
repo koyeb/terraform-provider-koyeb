@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func dataSourceKoyebApp() *schema.Resource {
@@ -24,10 +23,9 @@ func dataSourceKoyebApp() *schema.Resource {
 func dataSourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	mapper := idmapper.NewMapper(context.Background(), client)
-	appMapper := mapper.App()
+	resolver := newIDResolver(client)
 
-	id, err := appMapper.ResolveID(d.Get("name").(string))
+	id, err := resolver.App(ctx, d.Get("name").(string))
 
 	if err != nil {
 		return diag.Errorf("Error retrieving app: %s", err)
