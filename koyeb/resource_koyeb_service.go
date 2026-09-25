@@ -2174,7 +2174,8 @@ var serviceReadinessTimeout = 10 * time.Minute
 
 // serviceReadyStatuses mirrors the Python SDK's classify_service_status:
 // HEALTHY and DEGRADED are usable, STARTING and RESUMING keep polling, and
-// every other state is terminal.
+// every other known state is terminal (unknown statuses poll to the
+// timeout).
 var (
 	serviceReadyStatuses    = []string{"HEALTHY", "DEGRADED"}
 	serviceTerminalStatuses = []string{"UNHEALTHY", "DELETING", "DELETED", "PAUSING", "PAUSED"}

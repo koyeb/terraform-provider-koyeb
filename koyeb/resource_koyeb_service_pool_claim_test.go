@@ -601,3 +601,88 @@ func TestWaitForClaimFulfilledSurfacesVanishedClaim(t *testing.T) {
 		t.Fatalf("expected a vanished-claim error, got %v", err)
 	}
 }
+
+func TestResourceKoyebServicePoolClaimCreateRetriesTransientServiceErrors(t *testing.T) {
+	shortenWaits(t)
+	var serviceGets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/service_pools":
+			_, _ = w.Write([]byte(`{"service_pools":[{"id":"pool-uuid","name":"my-pool"}]}`))
+		case "/v1/claim":
+			_, _ = w.Write([]byte(`{"claim_id":"claim-uuid","service_id":"service-uuid","prewarmed":false}`))
+		case "/v1/claims/claim-uuid":
+			_, _ = w.Write([]byte(`{"claim":{"id":"claim-uuid","pool_id":"pool-uuid",` +
+				`"service_id":"service-uuid","request_id":"req-42","status":"FULFILLED",` +
+				`"organization_id":"org-id","workspace_id":"ws-id","customer_id":"customer-id",` +
+				`"created_at":"2026-09-18T13:10:00Z","fulfilled_at":"2026-09-18T13:10:01Z",` +
+				`"pool_generation":"3"}}`))
+		case "/v1/services/service-uuid":
+			// Cold claims briefly 5xx on GetService: the Python
+			// wait_claim_ready treats such blips as in-progress.
+			if atomic.AddInt32(&serviceGets, 1) == 1 {
+				http.Error(w, "boom", http.StatusInternalServerError)
+				return
+			}
+			_, _ = w.Write([]byte(`{"service":{"id":"service-uuid","status":"HEALTHY"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, resourceKoyebServicePoolClaim().Schema, map[string]interface{}{
+		"pool":       "my-pool",
+		"request_id": "req-42",
+	})
+
+	diags := resourceKoyebServicePoolClaimCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if n := atomic.LoadInt32(&serviceGets); n < 2 {
+		t.Errorf("expected the wait to retry past the transient failure, got %d service polls", n)
+	}
+}
+
+func TestResourceKoyebServicePoolClaimCreateErrorsWhenReplyHasNoService(t *testing.T) {
+	var calls []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/service_pools":
+			_, _ = w.Write([]byte(`{"service_pools":[{"id":"pool-uuid","name":"my-pool"}]}`))
+		case "/v1/claim":
+			calls = append(calls, r.URL.Path)
+			_, _ = w.Write([]byte(`{"claim_id":"claim-uuid","prewarmed":false}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, resourceKoyebServicePoolClaim().Schema, map[string]interface{}{
+		"pool":       "my-pool",
+		"request_id": "req-42",
+	})
+
+	diags := resourceKoyebServicePoolClaimCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "did not include a service_id") {
+		t.Errorf("expected a missing-service_id error, got: %s", diags[0].Summary)
+	}
+	if got := d.Id(); got != "" {
+		t.Errorf("expected no claim ID without a claimed service, got %q", got)
+	}
+}

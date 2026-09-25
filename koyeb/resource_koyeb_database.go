@@ -96,7 +96,7 @@ func databaseSchema() map[string]*schema.Schema {
 
 func resourceKoyebDatabase() *schema.Resource {
 	return &schema.Resource{
-		Description: "Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place.",
+		Description: "Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place. Create and update wait for the database service to become HEALTHY or DEGRADED before completing.",
 
 		CreateContext: resourceKoyebDatabaseCreate,
 		ReadContext:   resourceKoyebDatabaseRead,

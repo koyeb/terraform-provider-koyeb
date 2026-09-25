@@ -12,11 +12,11 @@ import (
 )
 
 // Readiness budget for created and updated pools; a variable so tests
-// can shorten it. ERROR is terminal: a pool that errored while prewarming
-// never becomes READY.
+// can shorten it. ERROR and DELETING are terminal: neither pool ever
+// becomes READY.
 var (
 	servicePoolReadinessTimeout = 5 * time.Minute
-	servicePoolTerminalStatuses = []string{"ERROR"}
+	servicePoolTerminalStatuses = []string{"ERROR", "DELETING"}
 )
 
 func servicePoolSchema() map[string]*schema.Schema {

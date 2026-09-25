@@ -19,8 +19,8 @@ func toOpt[T any](v T) *T {
 var waitRetryInterval = 5 * time.Second
 
 // waitForResourceStatus polls fn until the resource reaches targetStatus,
-// failing fast when it lands in any of the optional terminalStatuses.
-// Mirrors the Python SDK's fail-closed classification.
+// failing fast when it lands in any of the optional terminalStatuses;
+// unknown statuses keep polling until the timeout names them.
 func waitForResourceStatus[T any](ctx context.Context, fn func() (T, *_nethttp.Response, error), resourceName string, targetStatus []string, timeout time.Duration, throwErrorIfNotFound bool, terminalStatuses ...string) error {
 	lastStatus := "unknown"
 	deadline := time.Now().Add(timeout)
