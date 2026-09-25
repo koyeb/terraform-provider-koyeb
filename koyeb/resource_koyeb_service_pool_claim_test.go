@@ -609,3 +609,18 @@ func TestResourceKoyebServicePoolClaimCreateWaitsForClaimedService(t *testing.T)
 		t.Errorf("expected a FULFILLED claim, got %q", got)
 	}
 }
+
+func TestWaitForClaimFulfilledSurfacesVanishedClaim(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	err := waitForClaimFulfilled(context.Background(), koyeb.NewAPIClient(cfg), "claim-uuid", time.Minute, time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "disappeared") {
+		t.Fatalf("expected a vanished-claim error, got %v", err)
+	}
+}

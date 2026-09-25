@@ -193,10 +193,13 @@ func TestWaitForResourceStatusHonorsContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
+	// The polling request carries the cancelled context: the first call
+	// fails with a nil response, which must surface as an error (pinning
+	// the nil-response guard) instead of a panic.
 	start := time.Now()
 	err := waitForResourceStatus(
 		ctx,
-		client.ServicePoolsApi.GetServicePool(context.Background(), "pool-uuid").Execute,
+		client.ServicePoolsApi.GetServicePool(ctx, "pool-uuid").Execute,
 		"ServicePool", []string{"READY"}, time.Minute, false,
 	)
 	if err == nil || !strings.Contains(err.Error(), "cancel") {
@@ -204,6 +207,28 @@ func TestWaitForResourceStatusHonorsContextCancellation(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > time.Second {
 		t.Fatalf("expected the wait to unblock immediately, took %s", elapsed)
+	}
+}
+
+func TestWaitForResourceStatusSurfaces404WhenRequired(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	// Readiness waits pass throwErrorIfNotFound=true: a mid-wait 404 is a
+	// hard error, not success.
+	err := waitForResourceStatus(
+		context.Background(),
+		client.ServicePoolsApi.GetServicePool(context.Background(), "pool-uuid").Execute,
+		"ServicePool", []string{"READY"}, time.Minute, true,
+	)
+	if err == nil {
+		t.Fatal("expected a mid-wait 404 to surface as an error, got nil")
 	}
 }
 

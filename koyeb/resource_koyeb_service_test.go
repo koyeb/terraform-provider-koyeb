@@ -1272,31 +1272,37 @@ func testServiceRawDefinition() map[string]interface{} {
 	}
 }
 
+// Both usable statuses end the wait: DEGRADED services are handed to
+// users just like HEALTHY ones (the Python SDK's ready set).
 func TestResourceKoyebServiceCreateWaitsForServiceHealth(t *testing.T) {
-	shortenServiceWaits(t)
-	srv, gets := serviceWaitTestServer(t, "HEALTHY")
-	defer srv.Close()
+	for _, finalStatus := range []string{"HEALTHY", "DEGRADED"} {
+		t.Run(finalStatus, func(t *testing.T) {
+			shortenServiceWaits(t)
+			srv, gets := serviceWaitTestServer(t, finalStatus)
+			defer srv.Close()
 
-	cfg := koyeb.NewConfiguration()
-	cfg.Servers[0].URL = srv.URL
+			cfg := koyeb.NewConfiguration()
+			cfg.Servers[0].URL = srv.URL
 
-	// A UUIDv4 app name short-circuits the app mapper, so the mock only
-	// needs the service endpoints.
-	d := schema.TestResourceDataRaw(t, serviceSchema(), map[string]interface{}{
-		"app_name":   "123e4567-e89b-42d3-a456-426614174000",
-		"definition": []interface{}{testServiceRawDefinition()},
-	})
+			// A UUIDv4 app name short-circuits the app mapper, so the mock
+			// only needs the service endpoints.
+			d := schema.TestResourceDataRaw(t, serviceSchema(), map[string]interface{}{
+				"app_name":   "123e4567-e89b-42d3-a456-426614174000",
+				"definition": []interface{}{testServiceRawDefinition()},
+			})
 
-	diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+			diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
 
-	if len(diags) != 0 {
-		t.Fatalf("expected no diagnostics, got %v", diags)
-	}
-	if got := d.Get("status").(string); got != "HEALTHY" {
-		t.Errorf("expected the create to return a HEALTHY service, got %q", got)
-	}
-	if n := atomic.LoadInt32(gets); n < 2 {
-		t.Errorf("expected the create to poll GetService at least twice, got %d polls", n)
+			if len(diags) != 0 {
+				t.Fatalf("expected no diagnostics, got %v", diags)
+			}
+			if got := d.Get("status").(string); got != finalStatus {
+				t.Errorf("expected the create to return a %s service, got %q", finalStatus, got)
+			}
+			if n := atomic.LoadInt32(gets); n < 2 {
+				t.Errorf("expected the create to poll GetService at least twice, got %d polls", n)
+			}
+		})
 	}
 }
 
