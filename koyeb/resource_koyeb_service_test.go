@@ -1105,6 +1105,24 @@ func TestFlattenDeploymentDefinitionSetsArchive(t *testing.T) {
 	}
 }
 
+func TestDeploymentDefinitionTypeAllowsSandbox(t *testing.T) {
+	definitionType := deploymentDefinitionSchena().Schema["type"]
+
+	// Every other client sets SANDBOX on pool definitions; the name
+	// stays Required, which is what the server demands for SANDBOX.
+	if _, errs := definitionType.ValidateFunc("SANDBOX", "type"); len(errs) != 0 {
+		t.Errorf("expected SANDBOX to validate, got %v", errs)
+	}
+	for _, accepted := range []string{"WEB", "WORKER", "DATABASE"} {
+		if _, errs := definitionType.ValidateFunc(accepted, "type"); len(errs) != 0 {
+			t.Errorf("expected %s to keep validating, got %v", accepted, errs)
+		}
+	}
+	if _, errs := definitionType.ValidateFunc("BOGUS", "type"); len(errs) == 0 {
+		t.Error("expected BOGUS to stay rejected")
+	}
+}
+
 func TestProxyPortSchemaOnlyAllowsTCPProtocol(t *testing.T) {
 	protocol := proxyPortSchema().Schema["protocol"]
 

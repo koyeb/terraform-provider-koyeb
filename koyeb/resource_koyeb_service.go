@@ -118,11 +118,13 @@ func deploymentDefinitionSchena() *schema.Resource {
 				},
 			},
 			"type": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Default:      "WEB",
-				Description:  "The service type, either WEB, WORKER or DATABASE (default WEB)",
-				ValidateFunc: validation.StringInSlice([]string{"WEB", "WORKER", "DATABASE"}, false),
+				Type:     schema.TypeString,
+				Optional: true,
+				Default:  "WEB",
+				// The server requires the definition name for SANDBOX pools;
+				// `name` is Required above, which covers it.
+				Description:  "The service type, either WEB, WORKER, DATABASE or SANDBOX (default WEB)",
+				ValidateFunc: validation.StringInSlice([]string{"WEB", "WORKER", "DATABASE", "SANDBOX"}, false),
 			},
 			"docker": {
 				Type:     schema.TypeSet,
