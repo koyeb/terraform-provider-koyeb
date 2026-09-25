@@ -97,7 +97,10 @@ func resourceKoyebServicePool() *schema.Resource {
 		Description: "Service pool resource in the Koyeb Terraform provider. " +
 			"Service pools keep a set of prewarmed services ready to be claimed instantly. " +
 			"Size and definition changes are applied in place; " +
-			"renaming a pool is not supported by the Koyeb API.",
+			"renaming a pool is not supported by the Koyeb API. " +
+			"Create and update wait for the pool to become READY before completing. " +
+			"Sandbox pools need definition type = \"SANDBOX\" set explicitly (the provider defaults to WEB, unlike the SDKs) " +
+			"and, on the koyeb/sandbox image, a SANDBOX_SECRET env var supplied via definition env.",
 
 		CreateContext: resourceKoyebServicePoolCreate,
 		ReadContext:   resourceKoyebServicePoolRead,

@@ -164,7 +164,7 @@ func deploymentDefinitionSchena() *schema.Resource {
 			"proxy_ports": {
 				Type:        schema.TypeSet,
 				Optional:    true,
-				Description: "The proxy ports to expose on the service (available for services of type WEB only)",
+				Description: "The proxy ports to expose on the service (available for services of type WEB and SANDBOX)",
 				Elem:        proxyPortSchema(),
 				Set:         schema.HashResource(proxyPortSchema()),
 			},
@@ -2183,7 +2183,8 @@ var (
 func resourceKoyebService() *schema.Resource {
 	return &schema.Resource{
 		// This description is used by the documentation generator and the language server.
-		Description: "Service resource in the Koyeb Terraform provider.",
+		Description: "Service resource in the Koyeb Terraform provider. " +
+			"Create and update wait for the service to become HEALTHY or DEGRADED before completing.",
 
 		CreateContext: resourceKoyebServiceCreate,
 		ReadContext:   resourceKoyebServiceRead,

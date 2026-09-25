@@ -1224,7 +1224,8 @@ func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
 }
 
 // shortenServiceWaits collapses the readiness poll interval and timeout so
-// wait tests run in milliseconds; callers must defer the restore.
+// wait tests run in milliseconds; restore happens via t.Cleanup. Mutating
+// these package vars requires tests that do not use t.Parallel().
 func shortenServiceWaits(t *testing.T) {
 	t.Helper()
 	originalInterval := waitRetryInterval

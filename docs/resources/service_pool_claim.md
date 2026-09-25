@@ -3,12 +3,12 @@
 page_title: "koyeb_service_pool_claim Resource - terraform-provider-koyeb"
 subcategory: ""
 description: |-
-  Claim a prewarmed service from a service pool. The claim is idempotent: the same request ID re-claims the same service instead of claiming a second one. Destroying the claim deletes the claimed service; the claim record itself remains on the Koyeb side.
+  Claim a prewarmed service from a service pool. The claim is idempotent: the same request ID re-claims the same service instead of claiming a second one. Create waits until the claim is FULFILLED and the claimed service is ready, failing fast on FAILED or RELEASED. Destroying the claim deletes the claimed service; the claim record itself remains on the Koyeb side.
 ---
 
 # koyeb_service_pool_claim (Resource)
 
-Claim a prewarmed service from a service pool. The claim is idempotent: the same request ID re-claims the same service instead of claiming a second one. Destroying the claim deletes the claimed service; the claim record itself remains on the Koyeb side.
+Claim a prewarmed service from a service pool. The claim is idempotent: the same request ID re-claims the same service instead of claiming a second one. Create waits until the claim is FULFILLED and the claimed service is ready, failing fast on FAILED or RELEASED. Destroying the claim deletes the claimed service; the claim record itself remains on the Koyeb side.
 
 ## Example Usage
 

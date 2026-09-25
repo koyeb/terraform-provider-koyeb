@@ -3,12 +3,12 @@
 page_title: "koyeb_service Resource - terraform-provider-koyeb"
 subcategory: ""
 description: |-
-  Service resource in the Koyeb Terraform provider.
+  Service resource in the Koyeb Terraform provider. Create and update wait for the service to become HEALTHY or DEGRADED before completing.
 ---
 
 # koyeb_service (Resource)
 
-Service resource in the Koyeb Terraform provider.
+Service resource in the Koyeb Terraform provider. Create and update wait for the service to become HEALTHY or DEGRADED before completing.
 
 ## Example Usage
 
@@ -102,7 +102,7 @@ Optional:
 - `mesh` (String) Whether the service joins the service mesh: DEPLOYMENT_MESH_AUTO, DEPLOYMENT_MESH_ENABLED or DEPLOYMENT_MESH_DISABLED
 - `network_policy` (Block Set, Max: 1) The network policy applied to the service (see [below for nested schema](#nestedblock--definition--network_policy))
 - `ports` (Block Set) (see [below for nested schema](#nestedblock--definition--ports))
-- `proxy_ports` (Block Set) The proxy ports to expose on the service (available for services of type WEB only) (see [below for nested schema](#nestedblock--definition--proxy_ports))
+- `proxy_ports` (Block Set) The proxy ports to expose on the service (available for services of type WEB and SANDBOX) (see [below for nested schema](#nestedblock--definition--proxy_ports))
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
 - `skip_cache` (Boolean) If set to true, the service will be deployed without using the cache
 - `strategy` (String) The deployment strategy used when updating the service: DEPLOYMENT_STRATEGY_TYPE_ROLLING, DEPLOYMENT_STRATEGY_TYPE_BLUE_GREEN or DEPLOYMENT_STRATEGY_TYPE_IMMEDIATE
