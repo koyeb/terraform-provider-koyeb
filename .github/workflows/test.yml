@@ -132,7 +132,7 @@ jobs:
           go mod download
 
       - name: TF acceptance tests
-        timeout-minutes: 15
+        timeout-minutes: 18
         env:
           TF_ACC: "1"
           TF_ACC_MATRIX: ${{ matrix.terraform }}
@@ -142,8 +142,9 @@ jobs:
           # following syntax:
           KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
 
-        # The readiness waits budget up to ten minutes per resource; the
-        # suite timeout must sit above that so an exhausted wait fails
-        # with its own error instead of a test binary panic.
+        # The sequential suite in the snapshot slot sums to ~14 minutes
+        # and the readiness waits budget up to ten minutes per resource;
+        # the suite timeout must sit above both so an exhausted wait
+        # fails with its own error instead of a test binary panic.
         run: |
-          go test -v -cover ./koyeb -timeout 13m
+          go test -v -cover ./koyeb -timeout 16m
