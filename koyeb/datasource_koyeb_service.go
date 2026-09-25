@@ -32,7 +32,7 @@ func dataSourceKoyebService() *schema.Resource {
 				Type:        schema.TypeList,
 				Computed:    true,
 				Description: "The service deployment definition",
-				Elem:        deploymentDefinitionSchena(),
+				Elem:        deploymentDefinitionSchema(),
 			},
 			"app_id": {
 				Type:        schema.TypeString,

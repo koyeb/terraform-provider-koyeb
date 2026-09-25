@@ -1111,7 +1111,7 @@ func TestFlattenDeploymentDefinitionSetsArchive(t *testing.T) {
 }
 
 func TestDeploymentDefinitionTypeAllowsSandbox(t *testing.T) {
-	definitionType := deploymentDefinitionSchena().Schema["type"]
+	definitionType := deploymentDefinitionSchema().Schema["type"]
 
 	// Every other client sets SANDBOX on pool definitions; the name
 	// stays Required, which is what the server demands for SANDBOX.
@@ -1210,7 +1210,7 @@ func TestFlattenVolumesSetsScope(t *testing.T) {
 }
 
 func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
-	s := deploymentDefinitionSchena().Schema
+	s := deploymentDefinitionSchema().Schema
 
 	// The API fills strategy and mesh with these values in every stored
 	// definition; without matching schema defaults the definition

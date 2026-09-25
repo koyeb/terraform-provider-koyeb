@@ -42,7 +42,7 @@ func servicePoolSchema() map[string]*schema.Schema {
 			MaxItems:    1,
 			Required:    true,
 			Description: "The deployment definition of the services provisioned by the pool",
-			Elem:        deploymentDefinitionSchena(),
+			Elem:        deploymentDefinitionSchema(),
 		},
 		"organization_id": {
 			Type:        schema.TypeString,
@@ -185,7 +185,7 @@ func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, m
 // NOTE: The update endpoint only accepts size and definition: the API cannot
 // rename a pool, so fail explicitly on a name change instead of silently
 // ignoring it. The shared definition block keeps ForceNew: true on its
-// nested `name` (deploymentDefinitionSchena in resource_koyeb_service.go),
+// nested `name` (deploymentDefinitionSchema in resource_koyeb_service.go),
 // so renaming the definition plans a replacement; that apply fails at the
 // destroy step with the explicit delete error while deletion stays
 // unsupported upstream.
