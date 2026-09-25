@@ -167,6 +167,12 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 	d.SetId(*res.Service.Id)
 	log.Printf("[INFO] Created database name: %s", *res.Service.Name)
 
+	// A database is a service: apply should not report success before it
+	// is usable, matching koyeb_service.
+	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true, serviceTerminalStatuses...); err != nil {
+		return diag.Errorf("Error waiting for database to be ready: %s", err)
+	}
+
 	return resourceKoyebDatabaseRead(ctx, d, meta)
 }
 
@@ -223,6 +229,10 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 	}
 
 	log.Printf("[INFO] Updated database name: %s", *res.Service.Name)
+
+	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true, serviceTerminalStatuses...); err != nil {
+		return diag.Errorf("Error waiting for database to be ready: %s", err)
+	}
 
 	return resourceKoyebDatabaseRead(ctx, d, meta)
 }

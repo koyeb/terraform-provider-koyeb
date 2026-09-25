@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -462,5 +463,90 @@ func TestNewRoleSecretNameIsValidSecretName(t *testing.T) {
 	}
 	if !strings.HasPrefix(name, "role-") {
 		t.Errorf("expected the name to carry a letter prefix, got %q", name)
+	}
+}
+
+// databaseWaitTestServer serves the app create/list, the service
+// create/update, and a GetService that reports STARTING on the first poll
+// and the given status afterwards.
+func databaseWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *int32) {
+	t.Helper()
+	var gets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/apps":
+			_, _ = w.Write([]byte(`{}`))
+		case "PUT /v1/services/" + testServiceUUID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db"}}`))
+		case "GET /v1/apps":
+			_, _ = w.Write([]byte(`{"apps":[{"id":"123e4567-e89b-42d3-a456-426614174000","name":"my-db"}]}`))
+		case "POST /v1/services":
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db"}}`))
+		case "GET /v1/services/" + testServiceUUID:
+			status := "STARTING"
+			if n := atomic.AddInt32(&gets, 1); n > 1 {
+				status = finalStatus
+			}
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db","status":"` + status + `"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv, &gets
+}
+
+func TestResourceKoyebDatabaseCreateWaitsForDatabaseHealth(t *testing.T) {
+	shortenServiceWaits(t)
+	srv, gets := databaseWaitTestServer(t, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, databaseSchema(), map[string]interface{}{
+		"name": "my-db",
+	})
+
+	diags := resourceKoyebDatabaseCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "HEALTHY" {
+		t.Errorf("expected the create to return a HEALTHY database, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the create to poll GetService at least twice, got %d polls", n)
+	}
+}
+
+func TestResourceKoyebDatabaseUpdateWaitsForDatabaseHealth(t *testing.T) {
+	shortenServiceWaits(t)
+	srv, gets := databaseWaitTestServer(t, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	state := &terraform.InstanceState{
+		ID: testServiceUUID,
+		Attributes: map[string]string{
+			"name":        "my-db",
+			"role_secret": "role-existing-secret",
+		},
+	}
+	d := resourceKoyebDatabase().Data(state)
+
+	diags := resourceKoyebDatabaseUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "HEALTHY" {
+		t.Errorf("expected the update to return a HEALTHY database, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the update to poll GetService at least twice, got %d polls", n)
 	}
 }
