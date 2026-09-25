@@ -4,11 +4,30 @@ import (
 	"context"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
+
+// Readiness budget for created and updated pools; a variable so tests
+// can shorten it. ERROR and DELETING are terminal: neither pool ever
+// becomes READY.
+var (
+	servicePoolReadinessTimeout = 5 * time.Minute
+	servicePoolTerminalStatuses = []string{"ERROR", "DELETING"}
+)
+
+func waitForPoolReady(ctx context.Context, client *koyeb.APIClient, poolID string) error {
+	return waitForStatus(ctx, statusWait{
+		name:      "ServicePool",
+		targets:   []string{"READY"},
+		terminals: servicePoolTerminalStatuses,
+		timeout:   servicePoolReadinessTimeout,
+		interval:  waitRetryInterval,
+	}, servicePoolStatusPoller(ctx, client, poolID))
+}
 
 func servicePoolSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
@@ -33,7 +52,7 @@ func servicePoolSchema() map[string]*schema.Schema {
 			MaxItems:    1,
 			Required:    true,
 			Description: "The deployment definition of the services provisioned by the pool",
-			Elem:        deploymentDefinitionSchena(),
+			Elem:        deploymentDefinitionSchema(),
 		},
 		"organization_id": {
 			Type:        schema.TypeString,
@@ -88,7 +107,10 @@ func resourceKoyebServicePool() *schema.Resource {
 		Description: "Service pool resource in the Koyeb Terraform provider. " +
 			"Service pools keep a set of prewarmed services ready to be claimed instantly. " +
 			"Size and definition changes are applied in place; " +
-			"renaming a pool is not supported by the Koyeb API.",
+			"renaming a pool is not supported by the Koyeb API. " +
+			"Create and update wait for the pool to become READY before completing. " +
+			"Sandbox pools need definition type = \"SANDBOX\" set explicitly (the provider defaults to WEB, unlike the SDKs) " +
+			"and, on the koyeb/sandbox image, a SANDBOX_SECRET env var supplied via definition env.",
 
 		CreateContext: resourceKoyebServicePoolCreate,
 		ReadContext:   resourceKoyebServicePoolRead,
@@ -128,7 +150,7 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 
 	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicePoolsApi.CreateServicePool(context.Background()).ServicePool(koyeb.CreateServicePool{
+	res, resp, err := client.ServicePoolsApi.CreateServicePool(ctx).ServicePool(koyeb.CreateServicePool{
 		Name:       toOpt(d.Get("name").(string)),
 		Size:       toOpt(int64(d.Get("size").(int))),
 		Definition: definition,
@@ -141,13 +163,19 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 	d.SetId(pool.GetId())
 	log.Printf("[INFO] Created service pool name: %s", pool.GetName())
 
+	// Pools prewarm asynchronously: apply should only report success once
+	// the pool, not just the API call, is READY.
+	if err := waitForPoolReady(ctx, client, d.Id()); err != nil {
+		return diag.Errorf("Error waiting for service pool to be ready: %s", err)
+	}
+
 	return resourceKoyebServicePoolRead(ctx, d, meta)
 }
 
 func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.ServicePoolsApi.GetServicePool(context.Background(), d.Id()).Execute()
+	res, resp, err := client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute()
 	if err != nil {
 		// If the service pool is somehow already destroyed, mark as
 		// successfully gone
@@ -167,7 +195,7 @@ func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, m
 // NOTE: The update endpoint only accepts size and definition: the API cannot
 // rename a pool, so fail explicitly on a name change instead of silently
 // ignoring it. The shared definition block keeps ForceNew: true on its
-// nested `name` (deploymentDefinitionSchena in resource_koyeb_service.go),
+// nested `name` (deploymentDefinitionSchema in resource_koyeb_service.go),
 // so renaming the definition plans a replacement; that apply fails at the
 // destroy step with the explicit delete error while deletion stays
 // unsupported upstream.
@@ -184,7 +212,7 @@ func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData,
 
 	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicePoolsApi.UpdateServicePool(context.Background(), d.Id()).
+	res, resp, err := client.ServicePoolsApi.UpdateServicePool(ctx, d.Id()).
 		ServicePool(koyeb.UpdateServicePool{
 			Size:       toOpt(int64(d.Get("size").(int))),
 			Definition: definition,
@@ -196,6 +224,10 @@ func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData,
 	pool := res.GetServicePool()
 	log.Printf("[INFO] Updated service pool name: %s", pool.GetName())
 
+	if err := waitForPoolReady(ctx, client, d.Id()); err != nil {
+		return diag.Errorf("Error waiting for service pool to be ready: %s", err)
+	}
+
 	return resourceKoyebServicePoolRead(ctx, d, meta)
 }
 
@@ -205,7 +237,7 @@ func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData,
 func resourceKoyebServicePoolDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.ServicePoolsApi.DeleteServicePool(context.Background(), d.Id()).Execute()
+	res, resp, err := client.ServicePoolsApi.DeleteServicePool(ctx, d.Id()).Execute()
 	if err != nil {
 		return diag.Errorf("Error deleting service pool: %s (%v %v)", err, resp, res)
 	}

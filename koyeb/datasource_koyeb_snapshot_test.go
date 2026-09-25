@@ -85,7 +85,7 @@ data "koyeb_snapshot" "bar" {
 	name = koyeb_snapshot.foobar.name
 }`
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		Steps: []resource.TestStep{

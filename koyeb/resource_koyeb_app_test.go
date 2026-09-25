@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -55,7 +56,7 @@ func TestAccKoyebApp_Basic(t *testing.T) {
 	var app koyeb.App
 	appName := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebAppDestroy,
@@ -106,7 +107,7 @@ func testAccCheckKoyebAppDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.AppsApi.GetApp(context.Background(), rs.Primary.ID).Execute, "App", targetStatus, 1, false)
+		err := waitForStatus(context.Background(), goneWait("App", targetStatus, time.Minute), appStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("App still exists: %s", err)
 		}

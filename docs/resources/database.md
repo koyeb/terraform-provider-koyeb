@@ -3,12 +3,12 @@
 page_title: "koyeb_database Resource - terraform-provider-koyeb"
 subcategory: ""
 description: |-
-  Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place.
+  Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place. Create and update wait for the database service to become HEALTHY or DEGRADED before completing; updates wait for the replacement deployment to become healthy.
 ---
 
 # koyeb_database (Resource)
 
-Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place.
+Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place. Create and update wait for the database service to become HEALTHY or DEGRADED before completing; updates wait for the replacement deployment to become healthy.
 
 ## Example Usage
 

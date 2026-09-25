@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -52,7 +53,7 @@ func TestAccKoyebDomain_Basic(t *testing.T) {
 	appName := randomTestName()
 	domainName := appName + ".com"
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebDomainDestroy,
@@ -109,7 +110,7 @@ func testAccCheckKoyebDomainDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.DomainsApi.GetDomain(context.Background(), rs.Primary.ID).Execute, "Domain", targetStatus, 1, false)
+		err := waitForStatus(context.Background(), goneWait("Domain", targetStatus, time.Minute), domainStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Domain still exists: %s ", err)
 		}

@@ -8,7 +8,11 @@ require (
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.1
 	github.com/koyeb/koyeb-api-client-go v0.0.0-20260922125051-6b3a41d64230
-	github.com/koyeb/koyeb-cli v1.2.1-0.20241129081629-de122264b54e
+)
+
+require (
+	github.com/sergi/go-diff v1.3.1 // indirect
+	github.com/stretchr/testify v1.8.0 // indirect
 )
 
 require (

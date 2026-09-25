@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func dataSourceKoyebSecret() *schema.Resource {
@@ -19,10 +18,9 @@ func dataSourceKoyebSecret() *schema.Resource {
 func dataSourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	mapper := idmapper.NewMapper(context.Background(), client)
-	SecretMapper := mapper.Secret()
+	resolver := newIDResolver(client)
 
-	id, err := SecretMapper.ResolveID(d.Get("name").(string))
+	id, err := resolver.Secret(ctx, d.Get("name").(string))
 
 	if err != nil {
 		return diag.Errorf("Error retrieving secret: %s", err)

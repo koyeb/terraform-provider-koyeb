@@ -8,7 +8,9 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -135,7 +137,7 @@ func TestAccKoyebDatabase_Basic(t *testing.T) {
 	// Skip when the organization's free instance quota is already
 	// consumed: that is an environment limit, not a code defect.
 	checkFreeQuota := func() {
-		if exhausted, err := freeInstanceQuotaExhausted(testAccProvider.Meta().(*koyeb.APIClient)); err == nil && exhausted {
+		if exhausted, err := freeInstanceQuotaExhausted(context.Background(), testAccProvider.Meta().(*koyeb.APIClient)); err == nil && exhausted {
 			t.Skip("skipping: the organization's free instance quota is exhausted")
 		}
 	}
@@ -143,7 +145,7 @@ func TestAccKoyebDatabase_Basic(t *testing.T) {
 	var service koyeb.Service
 	databaseName := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAccPreCheck(t)
 			checkFreeQuota()
@@ -211,7 +213,7 @@ func testAccCheckKoyebDatabaseDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.ServicesApi.GetService(context.Background(), rs.Primary.ID).Execute, "Service", targetStatus, 1, false)
+		err := waitForStatus(context.Background(), goneWait("Service", targetStatus, time.Minute), serviceStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Database still exists: %s", err)
 		}
@@ -364,7 +366,7 @@ func TestResourceKoyebDatabaseReadResolvesShortID(t *testing.T) {
 			// the service mapper resolves app names for its compound keys
 			_, _ = w.Write([]byte(`{"apps":[{"id":"f19f2eaf-6d64-4a1c-b1d0-7015f3f7b1a","name":"my-app"}],"count":1}`))
 		case strings.HasSuffix(r.URL.Path, "/services") && r.Method == "GET":
-			// idmapper fetch: resolve the short ID to the service ID
+			// resolver listing: resolve the short ID to the service ID
 			_, _ = w.Write([]byte(`{"services":[{"id":"` + appID + `","name":"my-db","app_id":"f19f2eaf-6d64-4a1c-b1d0-7015f3f7b1a"}],"count":1}`))
 		case strings.Contains(r.URL.Path, appID):
 			_, _ = w.Write([]byte(`{"service":{"id":"` + appID + `","name":"my-db"}}`))
@@ -411,7 +413,7 @@ func TestFreeInstanceQuotaExhausted(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	exhausted, err := freeInstanceQuotaExhausted(client)
+	exhausted, err := freeInstanceQuotaExhausted(context.Background(), client)
 	if err != nil {
 		t.Fatalf("expected no error, got %s", err)
 	}
@@ -438,7 +440,7 @@ func TestFreeInstanceQuotaAvailable(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	exhausted, err := freeInstanceQuotaExhausted(client)
+	exhausted, err := freeInstanceQuotaExhausted(context.Background(), client)
 	if err != nil {
 		t.Fatalf("expected no error, got %s", err)
 	}
@@ -461,5 +463,131 @@ func TestNewRoleSecretNameIsValidSecretName(t *testing.T) {
 	}
 	if !strings.HasPrefix(name, "role-") {
 		t.Errorf("expected the name to carry a letter prefix, got %q", name)
+	}
+}
+
+// databaseWaitTestServer serves the app create/list, the service
+// create/update, and a GetService that reports STARTING on the first poll
+// and the given status afterwards.
+func databaseWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *int32) {
+	t.Helper()
+	var gets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/apps":
+			_, _ = w.Write([]byte(`{}`))
+		case "PUT /v1/services/" + testServiceUUID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db"}}`))
+		case "GET /v1/apps":
+			_, _ = w.Write([]byte(`{"apps":[{"id":"123e4567-e89b-42d3-a456-426614174000","name":"my-db"}]}`))
+		case "POST /v1/services":
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db"}}`))
+		case "GET /v1/services/" + testServiceUUID:
+			status := firstPollThen(&gets, "STARTING", finalStatus)
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db","status":"` + status + `"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv, &gets
+}
+
+func TestResourceKoyebDatabaseCreateWaitsForDatabaseHealth(t *testing.T) {
+	shortenWaits(t)
+	srv, gets := databaseWaitTestServer(t, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, databaseSchema(), map[string]interface{}{
+		"name": "my-db",
+	})
+
+	diags := resourceKoyebDatabaseCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "HEALTHY" {
+		t.Errorf("expected the create to return a HEALTHY database, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the create to poll GetService at least twice, got %d polls", n)
+	}
+}
+
+func TestResourceKoyebDatabaseUpdateWaitsForDatabaseHealth(t *testing.T) {
+	shortenWaits(t)
+	srv, gets := databaseWaitTestServer(t, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	state := &terraform.InstanceState{
+		ID: testServiceUUID,
+		Attributes: map[string]string{
+			"name":        "my-db",
+			"role_secret": "role-existing-secret",
+		},
+	}
+	d := resourceKoyebDatabase().Data(state)
+
+	diags := resourceKoyebDatabaseUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "HEALTHY" {
+		t.Errorf("expected the update to return a HEALTHY database, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the update to poll GetService at least twice, got %d polls", n)
+	}
+}
+
+// Database updates roll out a replacement deployment too: the wait must
+// verify the replacement, not the predecessor keeping the service healthy.
+func TestResourceKoyebDatabaseUpdateWaitsForReplacementDeployment(t *testing.T) {
+	shortenWaits(t)
+	var deploymentGets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "PUT /v1/services/" + testServiceUUID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db","latest_deployment_id":"dep-uuid"}}`))
+		case "GET /v1/services/" + testServiceUUID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db",` +
+				`"status":"HEALTHY","latest_deployment_id":"dep-uuid"}}`))
+		case "GET /v1/deployments/dep-uuid":
+			status := firstPollThen(&deploymentGets, "STARTING", "HEALTHY")
+			_, _ = w.Write([]byte(`{"deployment":{"id":"dep-uuid","status":"` + status + `"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	state := &terraform.InstanceState{
+		ID: testServiceUUID,
+		Attributes: map[string]string{
+			"name":        "my-db",
+			"role_secret": "role-existing-secret",
+		},
+	}
+	d := resourceKoyebDatabase().Data(state)
+
+	diags := resourceKoyebDatabaseUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if n := atomic.LoadInt32(&deploymentGets); n < 2 {
+		t.Errorf("expected the update to poll GetDeployment at least twice, got %d polls", n)
 	}
 }

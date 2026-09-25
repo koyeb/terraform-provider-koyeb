@@ -4,9 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -52,7 +57,7 @@ func TestAccKoyebService_Basic(t *testing.T) {
 	var service koyeb.Service
 	appName := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebServiceDestroy,
@@ -172,7 +177,7 @@ func testAccCheckKoyebServiceDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.ServicesApi.GetService(context.Background(), rs.Primary.ID).Execute, "Service", targetStatus, 1, false)
+		err := waitForStatus(context.Background(), goneWait("Service", targetStatus, time.Minute), serviceStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Service still exists: %s ", err)
 		}
@@ -417,6 +422,12 @@ resource "koyeb_service" "bar" {
 		  key   = "FOO"
 		  value = "BAR"
 		}
+		// The Procfile runs gunicorn on $PORT: without this env the app
+		// cannot bind the health-checked port and the deployment errors.
+		env {
+		  key   = "PORT"
+		  value = "8080"
+		}
 		routes {
 		  path = "/"
 		  port = 8080
@@ -452,9 +463,18 @@ resource "koyeb_service" "bar" {
 
 		  type = "micro"
 		}
-		type = "WORKER"
+		// The platform requires a route on services scaling to zero
+		// (workers cannot), so expose the express app's default port.
+		ports {
+		  port     = 3000
+		  protocol = "http"
+		}
+		routes {
+		  path = "/"
+		  port = 3000
+		}
 		scalings {
-		  min = 1
+		  min = 0
 		  max = 1
 		}
 		env {
@@ -463,7 +483,11 @@ resource "koyeb_service" "bar" {
 		}
 		regions = ["fra", "tyo"]
 		git {
-		  repository = "github.com/koyeb/example-flask"
+		  // example-flask has no Dockerfile and the platform e2e's
+		  // docker-build fixture is private (the org's GitHub
+		  // integration cannot resolve its SHA), so build the public
+		  // express example instead.
+		  repository = "github.com/koyeb/example-expressjs"
 		  branch = "main"
 		  dockerfile {}
 		}
@@ -1105,6 +1129,24 @@ func TestFlattenDeploymentDefinitionSetsArchive(t *testing.T) {
 	}
 }
 
+func TestDeploymentDefinitionTypeAllowsSandbox(t *testing.T) {
+	definitionType := deploymentDefinitionSchema().Schema["type"]
+
+	// Every other client sets SANDBOX on pool definitions; the name
+	// stays Required, which is what the server demands for SANDBOX.
+	if _, errs := definitionType.ValidateFunc("SANDBOX", "type"); len(errs) != 0 {
+		t.Errorf("expected SANDBOX to validate, got %v", errs)
+	}
+	for _, accepted := range []string{"WEB", "WORKER", "DATABASE"} {
+		if _, errs := definitionType.ValidateFunc(accepted, "type"); len(errs) != 0 {
+			t.Errorf("expected %s to keep validating, got %v", accepted, errs)
+		}
+	}
+	if _, errs := definitionType.ValidateFunc("BOGUS", "type"); len(errs) == 0 {
+		t.Error("expected BOGUS to stay rejected")
+	}
+}
+
 func TestProxyPortSchemaOnlyAllowsTCPProtocol(t *testing.T) {
 	protocol := proxyPortSchema().Schema["protocol"]
 
@@ -1187,7 +1229,7 @@ func TestFlattenVolumesSetsScope(t *testing.T) {
 }
 
 func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
-	s := deploymentDefinitionSchena().Schema
+	s := deploymentDefinitionSchema().Schema
 
 	// The API fills strategy and mesh with these values in every stored
 	// definition; without matching schema defaults the definition
@@ -1197,5 +1239,295 @@ func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
 	}
 	if got := s["mesh"].Default; got != "DEPLOYMENT_MESH_AUTO" {
 		t.Errorf("expected mesh default DEPLOYMENT_MESH_AUTO, got %v", got)
+	}
+}
+
+// serviceWaitTestServer serves a create/update reply and a GetService that
+// reports STARTING on the first poll and the given status afterwards.
+func serviceWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *int32) {
+	t.Helper()
+	var gets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/services", "PUT /v1/services/" + testServiceUUID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service"}}`))
+		case "GET /v1/services/" + testServiceUUID:
+			status := firstPollThen(&gets, "STARTING", finalStatus)
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service","status":"` + status + `"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv, &gets
+}
+
+const testServiceUUID = "123e4567-e89b-42d3-a456-426614174001"
+
+func testServiceRawDefinition() map[string]interface{} {
+	return map[string]interface{}{
+		"name": "my-service",
+		"docker": []interface{}{
+			map[string]interface{}{"image": "koyeb/demo"},
+		},
+	}
+}
+
+// Both usable statuses end the wait: DEGRADED services are handed to
+// users just like HEALTHY ones (the Python SDK's ready set).
+func TestResourceKoyebServiceCreateWaitsForServiceHealth(t *testing.T) {
+	for _, finalStatus := range []string{"HEALTHY", "DEGRADED"} {
+		t.Run(finalStatus, func(t *testing.T) {
+			shortenWaits(t)
+			srv, gets := serviceWaitTestServer(t, finalStatus)
+			defer srv.Close()
+
+			cfg := koyeb.NewConfiguration()
+			cfg.Servers[0].URL = srv.URL
+
+			// A UUIDv4 app name short-circuits the app mapper, so the mock
+			// only needs the service endpoints.
+			d := schema.TestResourceDataRaw(t, serviceSchema(), map[string]interface{}{
+				"app_name":   "123e4567-e89b-42d3-a456-426614174000",
+				"definition": []interface{}{testServiceRawDefinition()},
+			})
+
+			diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+			if len(diags) != 0 {
+				t.Fatalf("expected no diagnostics, got %v", diags)
+			}
+			if got := d.Get("status").(string); got != finalStatus {
+				t.Errorf("expected the create to return a %s service, got %q", finalStatus, got)
+			}
+			if n := atomic.LoadInt32(gets); n < 2 {
+				t.Errorf("expected the create to poll GetService at least twice, got %d polls", n)
+			}
+		})
+	}
+}
+
+func TestResourceKoyebServiceCreateFailsWhenServiceNeverHealthy(t *testing.T) {
+	shortenWaits(t)
+	srv, _ := serviceWaitTestServer(t, "STARTING")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, serviceSchema(), map[string]interface{}{
+		"app_name":   "123e4567-e89b-42d3-a456-426614174000",
+		"definition": []interface{}{testServiceRawDefinition()},
+	})
+
+	diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "Error waiting for service") {
+		t.Errorf("expected a wait-failure error, got: %s", diags[0].Summary)
+	}
+}
+
+func TestResourceKoyebServiceUpdateWaitsForServiceHealth(t *testing.T) {
+	shortenWaits(t)
+	srv, gets := serviceWaitTestServer(t, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	state := &terraform.InstanceState{
+		ID: testServiceUUID,
+		Attributes: map[string]string{
+			"app_name":                    "my-app",
+			"definition.#":                "1",
+			"definition.0.name":           "my-service",
+			"definition.0.docker.#":       "1",
+			"definition.0.docker.0.image": "koyeb/demo",
+		},
+	}
+	d := resourceKoyebService().Data(state)
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "HEALTHY" {
+		t.Errorf("expected the update to return a HEALTHY service, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the update to poll GetService at least twice, got %d polls", n)
+	}
+}
+
+func TestResourceKoyebServiceCreateFailsFastWhenServiceUnhealthy(t *testing.T) {
+	shortenWaits(t)
+	srv, gets := serviceWaitTestServer(t, "UNHEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, serviceSchema(), map[string]interface{}{
+		"app_name":   "123e4567-e89b-42d3-a456-426614174000",
+		"definition": []interface{}{testServiceRawDefinition()},
+	})
+
+	diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "UNHEALTHY") {
+		t.Errorf("expected the diagnostic to surface the UNHEALTHY service status, got: %s", diags[0].Summary)
+	}
+	if n := atomic.LoadInt32(gets); n != 2 {
+		t.Errorf("expected the wait to stop at the first UNHEALTHY poll, got %d polls", n)
+	}
+}
+
+// deploymentWaitTestServer serves a service update whose reply pins the
+// replacement deployment, a service GET that keeps reporting the OLD
+// deployment's HEALTHY, and a deployment that reports STARTING on the
+// first poll and finalStatus afterwards.
+func deploymentWaitTestServer(t *testing.T, pinsReply bool, finalStatus string) (*httptest.Server, *int32, *int32) {
+	t.Helper()
+	var serviceGets, deploymentGets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "PUT /v1/services/" + testServiceUUID:
+			latest := ""
+			if pinsReply {
+				latest = `,"latest_deployment_id":"dep-uuid"`
+			}
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service"` + latest + `}}`))
+		case "GET /v1/services/" + testServiceUUID:
+			atomic.AddInt32(&serviceGets, 1)
+			// The old deployment stays healthy through the rollout: the
+			// service-level status must never satisfy the update wait.
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service",` +
+				`"status":"HEALTHY","latest_deployment_id":"dep-uuid"}}`))
+		case "GET /v1/deployments/dep-uuid":
+			status := firstPollThen(&deploymentGets, "STARTING", finalStatus)
+			_, _ = w.Write([]byte(`{"deployment":{"id":"dep-uuid","status":"` + status + `",` +
+				`"messages":["build failed: could not read source"]}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv, &serviceGets, &deploymentGets
+}
+
+func testServiceUpdateState() *terraform.InstanceState {
+	return &terraform.InstanceState{
+		ID: testServiceUUID,
+		Attributes: map[string]string{
+			"app_name":                    "my-app",
+			"definition.#":                "1",
+			"definition.0.name":           "my-service",
+			"definition.0.docker.#":       "1",
+			"definition.0.docker.0.image": "koyeb/demo",
+		},
+	}
+}
+
+// An update must be verified against the REPLACEMENT deployment, not the
+// predecessor: the old deployment keeps the service-level status HEALTHY
+// through a rolling update, so only the pinned deployment's transition to
+// healthy proves the new version is live (mirrors the Python SDK fix
+// koyeb-python-sdk@10210e3).
+func TestResourceKoyebServiceUpdateWaitsForReplacementDeployment(t *testing.T) {
+	shortenWaits(t)
+	srv, _, deploymentGets := deploymentWaitTestServer(t, true, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := resourceKoyebService().Data(testServiceUpdateState())
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if n := atomic.LoadInt32(deploymentGets); n < 2 {
+		t.Errorf("expected the update to poll GetDeployment at least twice, got %d polls", n)
+	}
+}
+
+// The update reply does not always carry the replacement id; the live
+// service does, and pinning from it keeps the wait on the replacement.
+func TestResourceKoyebServiceUpdatePinsDeploymentFromService(t *testing.T) {
+	shortenWaits(t)
+	srv, serviceGets, deploymentGets := deploymentWaitTestServer(t, false, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := resourceKoyebService().Data(testServiceUpdateState())
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if n := atomic.LoadInt32(serviceGets); n < 1 {
+		t.Errorf("expected the pin to be read from the live service, got %d service polls", n)
+	}
+	if n := atomic.LoadInt32(deploymentGets); n < 2 {
+		t.Errorf("expected the update to poll GetDeployment at least twice, got %d polls", n)
+	}
+}
+
+// A replacement deployment that errors is terminal: the update fails fast
+// with the status instead of burning the whole budget.
+func TestResourceKoyebServiceUpdateFailsWhenReplacementErrors(t *testing.T) {
+	shortenWaits(t)
+	srv, _, deploymentGets := deploymentWaitTestServer(t, true, "ERROR")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := resourceKoyebService().Data(testServiceUpdateState())
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "ERROR") {
+		t.Errorf("expected the diagnostic to surface the ERROR deployment status, got: %s", diags[0].Summary)
+	}
+	if n := atomic.LoadInt32(deploymentGets); n != 2 {
+		t.Errorf("expected the wait to stop at the first ERROR poll, got %d polls", n)
+	}
+}
+
+// The deployment's own messages explain why it failed; the wait surfaces
+// them instead of a bare status.
+func TestResourceKoyebServiceUpdateSurfacesDeploymentMessages(t *testing.T) {
+	shortenWaits(t)
+	srv, _, _ := deploymentWaitTestServer(t, true, "ERROR")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := resourceKoyebService().Data(testServiceUpdateState())
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "build failed: could not read source") {
+		t.Errorf("expected the diagnostic to surface the deployment messages, got: %s", diags[0].Summary)
 	}
 }

@@ -20,11 +20,11 @@ func isStillAttachedError(err error) bool {
 // deleteVolumeWhenDetached deletes a volume, tolerating the window where a
 // service that mounted it is still being torn down: the API rejects the
 // delete with "still attached" until the detach completes.
-func deleteVolumeWhenDetached(client *koyeb.APIClient, id string, interval time.Duration) error {
+func deleteVolumeWhenDetached(ctx context.Context, client *koyeb.APIClient, id string, interval time.Duration) error {
 	const attempts = 30
 
 	for i := 0; i < attempts; i++ {
-		_, resp, err := client.PersistentVolumesApi.DeletePersistentVolume(context.Background(), id).Execute()
+		_, resp, err := client.PersistentVolumesApi.DeletePersistentVolume(ctx, id).Execute()
 		if err == nil {
 			return nil
 		}

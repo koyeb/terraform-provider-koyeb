@@ -47,7 +47,7 @@ data "koyeb_volume" "bar" {
 	name = koyeb_volume.foobar.name
 }`
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		Steps: []resource.TestStep{

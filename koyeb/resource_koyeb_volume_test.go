@@ -17,7 +17,7 @@ func TestAccKoyebVolume_Basic(t *testing.T) {
 	var volume koyeb.PersistentVolume
 	volumeName := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebVolumeDestroy,
@@ -56,7 +56,7 @@ func testAccCheckKoyebVolumeDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.PersistentVolumesApi.GetPersistentVolume(context.Background(), rs.Primary.ID).Execute, "Volume", targetStatus, 1, false)
+		err := waitForStatus(context.Background(), goneWait("Volume", targetStatus, time.Minute), volumeStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Volume still exists: %s", err)
 		}
@@ -141,7 +141,7 @@ func TestDeleteVolumeWhenDetachedRetriesWhileAttached(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	if err := deleteVolumeWhenDetached(client, volumeID, 10*time.Millisecond); err != nil {
+	if err := deleteVolumeWhenDetached(context.Background(), client, volumeID, 10*time.Millisecond); err != nil {
 		t.Fatalf("expected the delete to eventually succeed, got %s", err)
 	}
 	if deletes != 3 {

@@ -2,11 +2,40 @@ package koyeb
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
+
+// Claim wait budget and poll interval, mirroring the Python SDK's
+// DEFAULT_CLAIM_WAIT_TIMEOUT and DEFAULT_CLAIM_POLL_INTERVAL; variables so
+// tests can shorten them.
+var (
+	claimWaitTimeout  = 300 * time.Second
+	claimWaitInterval = 2 * time.Second
+)
+
+// waitForClaimFulfilled polls GetClaim until the claim is FULFILLED,
+// surfacing FAILED and RELEASED immediately: neither can still become
+// FULFILLED. Cold claims provision a service on demand, so a pending
+// claim is not yet usable.
+
+// waitForClaimFulfilled polls GetClaim until the claim is FULFILLED,
+// surfacing FAILED and RELEASED immediately: neither can still become
+// FULFILLED. Cold claims provision a service on demand, so a pending
+// claim is not yet usable.
+func waitForClaimFulfilled(ctx context.Context, client *koyeb.APIClient, claimID string, timeout, interval time.Duration) error {
+	return waitForStatus(ctx, statusWait{
+		name:      fmt.Sprintf("claim %s", claimID),
+		targets:   []string{string(koyeb.POOLCLAIMSTATUS_FULFILLED)},
+		terminals: []string{string(koyeb.POOLCLAIMSTATUS_FAILED), string(koyeb.POOLCLAIMSTATUS_RELEASED)},
+		timeout:   timeout,
+		interval:  interval,
+	}, poolClaimStatusPoller(ctx, client, claimID))
+}
 
 // NOTE: A claim hands out a service detached from the pool, so destroying
 // the claim deletes that service via the public service API; the claim
@@ -14,7 +43,9 @@ import (
 func resourceKoyebServicePoolClaim() *schema.Resource {
 	return &schema.Resource{
 		Description: "Claim a prewarmed service from a service pool. " +
-			"The claim is idempotent: the same request ID re-claims the same service instead of claiming a second one. " +
+			"The claim is idempotent: the same request ID re-claims the same service instead of claiming a second one " +
+			"until the claimed service has been destroyed; re-claiming afterwards requires a fresh request ID. " +
+			"Create waits until the claim is FULFILLED and the claimed service is ready, failing fast on FAILED or RELEASED. " +
 			"Destroying the claim deletes the claimed service; " +
 			"the claim record itself remains on the Koyeb side.",
 
@@ -108,7 +139,7 @@ func resourceKoyebServicePoolClaimCreate(
 
 	name := d.Get("pool").(string)
 
-	pools, resp, err := client.ServicePoolsApi.ListServicePools(context.Background()).Name(name).Execute()
+	pools, resp, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
 	if err != nil {
 		return diag.Errorf("Error retrieving service pool: %s (%v %v)", err, resp, pools)
 	}
@@ -124,12 +155,18 @@ func resourceKoyebServicePoolClaimCreate(
 		return diag.Errorf("No service pool found with name %s", name)
 	}
 
-	res, resp, err := client.PoolClaimsApi.Claim(context.Background()).Body(koyeb.PoolClaimRequest{
+	res, resp, err := client.PoolClaimsApi.Claim(ctx).Body(koyeb.PoolClaimRequest{
 		PoolId:    toOpt(poolID),
 		RequestId: toOpt(d.Get("request_id").(string)),
 	}).Execute()
 	if err != nil {
 		return diag.Errorf("Error claiming service pool: %s (%v %v)", err, resp, res)
+	}
+
+	// The reply must hand out a service, mirroring the Python SDK's
+	// claim contract; otherwise the claim is unusable.
+	if res.GetServiceId() == "" {
+		return diag.Errorf("Claim reply for pool %s did not include a service_id", name)
 	}
 
 	// The reply carries what only the claim call sees: the service handed
@@ -142,6 +179,25 @@ func resourceKoyebServicePoolClaimCreate(
 		return diag.FromErr(err)
 	}
 
+	if err := waitForClaimFulfilled(ctx, client, d.Id(), claimWaitTimeout, claimWaitInterval); err != nil {
+		return diag.Errorf("Error waiting for service pool claim to be fulfilled: %s", err)
+	}
+
+	// The server stamps FULFILLED when the service is created, not when it
+	// is ready; mirror the Python SDK's wait_claim_ready so the exported
+	// service_id is usable when apply reports success.
+	claimServiceWait := statusWait{
+		name:           "Service",
+		targets:        serviceReadyStatuses,
+		terminals:      serviceTerminalStatuses,
+		timeout:        claimWaitTimeout,
+		interval:       claimWaitInterval,
+		retryTransient: true,
+	}
+	if err := waitForStatus(ctx, claimServiceWait, serviceStatusPoller(ctx, client, res.GetServiceId())); err != nil {
+		return diag.Errorf("Error waiting for claimed service to be ready: %s", err)
+	}
+
 	return resourceKoyebServicePoolClaimRead(ctx, d, meta)
 }
 
@@ -150,7 +206,7 @@ func resourceKoyebServicePoolClaimRead(
 ) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.PoolClaimsApi.GetClaim(context.Background(), d.Id()).Execute()
+	res, resp, err := client.PoolClaimsApi.GetClaim(ctx, d.Id()).Execute()
 	if err != nil {
 		if resp != nil && resp.StatusCode == 404 {
 			d.SetId("")
@@ -204,7 +260,7 @@ func resourceKoyebServicePoolClaimDelete(
 		return nil
 	}
 
-	res, resp, err := client.ServicesApi.DeleteService(context.Background(), serviceID).Execute()
+	res, resp, err := client.ServicesApi.DeleteService(ctx, serviceID).Execute()
 	if err != nil {
 		return diag.Errorf("Error deleting claimed service: %s (%v %v)", err, resp, res)
 	}

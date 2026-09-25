@@ -3,12 +3,12 @@
 page_title: "koyeb_service_pool Resource - terraform-provider-koyeb"
 subcategory: ""
 description: |-
-  Service pool resource in the Koyeb Terraform provider. Service pools keep a set of prewarmed services ready to be claimed instantly. Size and definition changes are applied in place; renaming a pool is not supported by the Koyeb API.
+  Service pool resource in the Koyeb Terraform provider. Service pools keep a set of prewarmed services ready to be claimed instantly. Size and definition changes are applied in place; renaming a pool is not supported by the Koyeb API. Create and update wait for the pool to become READY before completing. Sandbox pools need definition type = "SANDBOX" set explicitly (the provider defaults to WEB, unlike the SDKs) and, on the koyeb/sandbox image, a SANDBOX_SECRET env var supplied via definition env.
 ---
 
 # koyeb_service_pool (Resource)
 
-Service pool resource in the Koyeb Terraform provider. Service pools keep a set of prewarmed services ready to be claimed instantly. Size and definition changes are applied in place; renaming a pool is not supported by the Koyeb API.
+Service pool resource in the Koyeb Terraform provider. Service pools keep a set of prewarmed services ready to be claimed instantly. Size and definition changes are applied in place; renaming a pool is not supported by the Koyeb API. Create and update wait for the pool to become READY before completing. Sandbox pools need definition type = "SANDBOX" set explicitly (the provider defaults to WEB, unlike the SDKs) and, on the koyeb/sandbox image, a SANDBOX_SECRET env var supplied via definition env.
 
 ## Example Usage
 
@@ -82,11 +82,11 @@ Optional:
 - `mesh` (String) Whether the service joins the service mesh: DEPLOYMENT_MESH_AUTO, DEPLOYMENT_MESH_ENABLED or DEPLOYMENT_MESH_DISABLED
 - `network_policy` (Block Set, Max: 1) The network policy applied to the service (see [below for nested schema](#nestedblock--definition--network_policy))
 - `ports` (Block Set) (see [below for nested schema](#nestedblock--definition--ports))
-- `proxy_ports` (Block Set) The proxy ports to expose on the service (available for services of type WEB only) (see [below for nested schema](#nestedblock--definition--proxy_ports))
+- `proxy_ports` (Block Set) The proxy ports to expose on the service (available for services of type WEB and SANDBOX) (see [below for nested schema](#nestedblock--definition--proxy_ports))
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
 - `skip_cache` (Boolean) If set to true, the service will be deployed without using the cache
 - `strategy` (String) The deployment strategy used when updating the service: DEPLOYMENT_STRATEGY_TYPE_ROLLING, DEPLOYMENT_STRATEGY_TYPE_BLUE_GREEN or DEPLOYMENT_STRATEGY_TYPE_IMMEDIATE
-- `type` (String) The service type, either WEB, WORKER or DATABASE (default WEB)
+- `type` (String) The service type, either WEB, WORKER, DATABASE or SANDBOX (default WEB)
 - `volumes` (Block Set) The volumes to attach and mount to the service (see [below for nested schema](#nestedblock--definition--volumes))
 
 <a id="nestedblock--definition--instance_types"></a>

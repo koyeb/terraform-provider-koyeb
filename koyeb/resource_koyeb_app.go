@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func appSchema() map[string]*schema.Schema {
@@ -107,7 +106,7 @@ func resourceKoyebAppCreate(ctx context.Context, d *schema.ResourceData, meta in
 		},
 	}
 
-	res, resp, err := client.AppsApi.CreateApp(context.Background()).App(createApp).Execute()
+	res, resp, err := client.AppsApi.CreateApp(ctx).App(createApp).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error creating app: %s (%v %v)", err, resp, res)
@@ -131,7 +130,7 @@ func resourceKoyebAppUpdate(ctx context.Context, d *schema.ResourceData, meta in
 		},
 	}
 
-	res, resp, err := client.AppsApi.UpdateApp(context.Background(), d.Id()).App(updateApp).Execute()
+	res, resp, err := client.AppsApi.UpdateApp(ctx, d.Id()).App(updateApp).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error updating app: %s (%v %v)", err, resp, res)
@@ -144,12 +143,11 @@ func resourceKoyebAppUpdate(ctx context.Context, d *schema.ResourceData, meta in
 
 func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	appMapper := mapper.App()
+	resolver := newIDResolver(client)
 	var appId string
 
 	if d.Id() != "" {
-		id, err := appMapper.ResolveID(d.Id())
+		id, err := resolver.App(ctx, d.Id())
 
 		if err != nil {
 			return diag.Errorf("Error retrieving app: %s", err)
@@ -158,7 +156,7 @@ func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta inte
 		appId = id
 	}
 
-	res, resp, err := client.AppsApi.GetApp(context.Background(), appId).Execute()
+	res, resp, err := client.AppsApi.GetApp(ctx, appId).Execute()
 	if err != nil {
 		// If the app is somehow already destroyed, mark as
 		// successfully gone
@@ -178,7 +176,7 @@ func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta inte
 func resourceKoyebAppDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.AppsApi.DeleteApp(context.Background(), d.Id()).Execute()
+	res, resp, err := client.AppsApi.DeleteApp(ctx, d.Id()).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error deleting app: %s (%v %v)", err, resp, res)

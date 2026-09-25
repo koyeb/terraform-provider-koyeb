@@ -46,7 +46,7 @@ func testSweepVolume(string) error {
 			log.Printf("Destroying volume %s", v.GetName())
 
 			// Services are swept first, but the detach is asynchronous.
-			if err := deleteVolumeWhenDetached(client, v.GetId(), 10*time.Second); err != nil {
+			if err := deleteVolumeWhenDetached(context.Background(), client, v.GetId(), 10*time.Second); err != nil {
 				return err
 			}
 		}
@@ -72,7 +72,16 @@ func testSweepSnapshot(string) error {
 		if strings.HasPrefix(s.GetName(), testNamePrefix) {
 			log.Printf("Destroying snapshot %s", s.GetName())
 
-			if _, _, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), s.GetId()).Execute(); err != nil {
+			if _, resp, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), s.GetId()).Execute(); err != nil {
+				// A 400 is a transient precondition (still uploading, or
+				// already being deleted from an earlier sweep) and a 404
+				// means the snapshot is already gone; both clear on their
+				// own, so skipping keeps the sweep useful without failing
+				// the job and skipping the whole suite.
+				if resp != nil && (resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound) {
+					log.Printf("[WARN] skipping snapshot %s not deletable yet (HTTP %d): %s", s.GetName(), resp.StatusCode, err)
+					continue
+				}
 				return err
 			}
 		}
@@ -146,7 +155,7 @@ func TestAccKoyebSnapshot_Basic(t *testing.T) {
 	snapshotName := randomTestName()
 	renamedSnapshotName := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebSnapshotDestroy,
@@ -233,7 +242,7 @@ func testAccCheckKoyebSnapshotDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.SnapshotsApi.GetSnapshot(context.Background(), rs.Primary.ID).Execute, "Snapshot", targetStatus, 1, false)
+		err := waitForStatus(context.Background(), goneWait("Snapshot", targetStatus, time.Minute), snapshotStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Snapshot still exists: %s", err)
 		}
@@ -387,7 +396,7 @@ func TestDeleteSnapshotWhenUploadedRetriesWhileUploading(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	if err := deleteSnapshotWhenUploaded(client, snapshotID, 10*time.Millisecond); err != nil {
+	if err := deleteSnapshotWhenUploaded(context.Background(), client, snapshotID, 10*time.Millisecond); err != nil {
 		t.Fatalf("expected the delete to eventually succeed, got %s", err)
 	}
 	if deletes != 2 {

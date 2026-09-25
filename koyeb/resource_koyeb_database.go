@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
-	"github.com/koyeb/koyeb-cli/pkg/koyeb/idmapper"
 )
 
 func databaseSchema() map[string]*schema.Schema {
@@ -96,7 +95,7 @@ func databaseSchema() map[string]*schema.Schema {
 
 func resourceKoyebDatabase() *schema.Resource {
 	return &schema.Resource{
-		Description: "Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place.",
+		Description: "Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place. Create and update wait for the database service to become HEALTHY or DEGRADED before completing; updates wait for the replacement deployment to become healthy.",
 
 		CreateContext: resourceKoyebDatabaseCreate,
 		ReadContext:   resourceKoyebDatabaseRead,
@@ -126,16 +125,16 @@ func setDatabaseAttribute(d *schema.ResourceData, service koyeb.Service) error {
 
 func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
+	resolver := newIDResolver(client)
 
-	_, _, err := client.AppsApi.CreateApp(context.Background()).App(koyeb.CreateApp{
+	_, _, err := client.AppsApi.CreateApp(ctx).App(koyeb.CreateApp{
 		Name: toOpt(d.Get("name").(string)),
 	}).Execute()
 	if err != nil && !isAppNameAlreadyExistsError(err) {
 		return diag.Errorf("Error creating the database app: %s", err)
 	}
 
-	appID, err := mapper.App().ResolveID(d.Get("name").(string))
+	appID, err := resolver.App(ctx, d.Get("name").(string))
 	if err != nil {
 		return diag.Errorf("Error resolving the database app: %s", err)
 	}
@@ -156,7 +155,7 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 		roleSecret,
 	)
 
-	res, resp, err := client.ServicesApi.CreateService(context.Background()).Service(koyeb.CreateService{
+	res, resp, err := client.ServicesApi.CreateService(ctx).Service(koyeb.CreateService{
 		AppId:      toOpt(appID),
 		Definition: definition,
 	}).Execute()
@@ -167,20 +166,25 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 	d.SetId(*res.Service.Id)
 	log.Printf("[INFO] Created database name: %s", *res.Service.Name)
 
+	// A database is a service: apply should not report success before it
+	// is usable, matching koyeb_service.
+	if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
+		return diag.Errorf("Error waiting for database to be ready: %s", err)
+	}
+
 	return resourceKoyebDatabaseRead(ctx, d, meta)
 }
 
 func resourceKoyebDatabaseRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
-	mapper := idmapper.NewMapper(context.Background(), client)
-	serviceMapper := mapper.Service()
+	resolver := newIDResolver(client)
 
-	databaseId, err := serviceMapper.ResolveID(d.Id())
+	databaseId, err := resolver.Service(ctx, d.Id())
 	if err != nil {
 		return diag.Errorf("Error retrieving database: %s", err)
 	}
 
-	res, resp, err := client.ServicesApi.GetService(context.Background(), databaseId).Execute()
+	res, resp, err := client.ServicesApi.GetService(ctx, databaseId).Execute()
 	if err != nil {
 		// If the database is somehow already destroyed, mark as
 		// successfully gone
@@ -215,7 +219,7 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 		roleSecret,
 	)
 
-	res, resp, err := client.ServicesApi.UpdateService(context.Background(), d.Id()).Service(koyeb.UpdateService{
+	res, resp, err := client.ServicesApi.UpdateService(ctx, d.Id()).Service(koyeb.UpdateService{
 		Definition: definition,
 	}).Execute()
 	if err != nil {
@@ -224,13 +228,21 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 
 	log.Printf("[INFO] Updated database name: %s", *res.Service.Name)
 
+	if deploymentID := replacementDeploymentID(ctx, client, res.GetService()); deploymentID != "" {
+		if err := waitForDeploymentReady(ctx, client, deploymentID, serviceReadinessTimeout); err != nil {
+			return diag.Errorf("Error waiting for the replacement deployment to be ready: %s", err)
+		}
+	} else if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
+		return diag.Errorf("Error waiting for database to be ready: %s", err)
+	}
+
 	return resourceKoyebDatabaseRead(ctx, d, meta)
 }
 
 func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.ServicesApi.DeleteService(context.Background(), d.Id()).Execute()
+	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
 		return diag.Errorf("Error deleting database: %s (%v %v)", err, resp, res)
 	}
@@ -246,8 +258,8 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 // freeInstanceQuotaExhausted reports whether the organization has any
 // free instance left, so the acceptance tests can skip instead of failing
 // on a quota they cannot control.
-func freeInstanceQuotaExhausted(client *koyeb.APIClient) (bool, error) {
-	orgs, _, err := client.ProfileApi.ListUserOrganizations(context.Background()).Execute()
+func freeInstanceQuotaExhausted(ctx context.Context, client *koyeb.APIClient) (bool, error) {
+	orgs, _, err := client.ProfileApi.ListUserOrganizations(ctx).Execute()
 	if err != nil {
 		return false, err
 	}
@@ -256,7 +268,7 @@ func freeInstanceQuotaExhausted(client *koyeb.APIClient) (bool, error) {
 	}
 	orgID := orgs.Organizations[0].GetId()
 
-	usage, _, err := client.QuotasApi.GetOrganizationQuotasUsage(context.Background(), orgID).Execute()
+	usage, _, err := client.QuotasApi.GetOrganizationQuotasUsage(ctx, orgID).Execute()
 	if err != nil {
 		return false, err
 	}

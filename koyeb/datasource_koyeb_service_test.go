@@ -58,7 +58,7 @@ data "koyeb_service" "foobar" {
   slug = "${koyeb_app.foo.name}/${koyeb_service.bar.name}"
 }`
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		Steps: []resource.TestStep{
