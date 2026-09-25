@@ -463,7 +463,16 @@ resource "koyeb_service" "bar" {
 
 		  type = "micro"
 		}
-		type = "WORKER"
+		// The platform requires a route on services scaling to zero
+		// (workers cannot), so expose the express app's default port.
+		ports {
+		  port     = 3000
+		  protocol = "http"
+		}
+		routes {
+		  path = "/"
+		  port = 3000
+		}
 		scalings {
 		  min = 0
 		  max = 1
