@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -251,4 +252,33 @@ func TestWaitForResourceStatusAppSatisfiesTargetStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected the DELETED app to satisfy the wait, got %s", err)
 	}
+}
+
+// shortenWaits collapses every wait knob so wait tests run in milliseconds;
+// restore happens via t.Cleanup. Mutating these package vars requires
+// tests that do not use t.Parallel().
+func shortenWaits(t *testing.T) {
+	t.Helper()
+	originalRetry, originalService, originalPool := waitRetryInterval, serviceReadinessTimeout, servicePoolReadinessTimeout
+	originalClaimTimeout, originalClaimInterval := claimWaitTimeout, claimWaitInterval
+	waitRetryInterval = 5 * time.Millisecond
+	serviceReadinessTimeout = 250 * time.Millisecond
+	servicePoolReadinessTimeout = 250 * time.Millisecond
+	claimWaitTimeout = 250 * time.Millisecond
+	claimWaitInterval = 5 * time.Millisecond
+	t.Cleanup(func() {
+		waitRetryInterval = originalRetry
+		serviceReadinessTimeout = originalService
+		servicePoolReadinessTimeout = originalPool
+		claimWaitTimeout = originalClaimTimeout
+		claimWaitInterval = originalClaimInterval
+	})
+}
+
+// firstPollThen reports first on the initial call and next afterwards.
+func firstPollThen(counter *int32, first, next string) string {
+	if atomic.AddInt32(counter, 1) > 1 {
+		return next
+	}
+	return first
 }

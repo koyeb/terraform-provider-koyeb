@@ -169,7 +169,7 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 
 	// A database is a service: apply should not report success before it
 	// is usable, matching koyeb_service.
-	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true, serviceTerminalStatuses...); err != nil {
+	if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
 		return diag.Errorf("Error waiting for database to be ready: %s", err)
 	}
 
@@ -230,7 +230,7 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 
 	log.Printf("[INFO] Updated database name: %s", *res.Service.Name)
 
-	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true, serviceTerminalStatuses...); err != nil {
+	if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
 		return diag.Errorf("Error waiting for database to be ready: %s", err)
 	}
 

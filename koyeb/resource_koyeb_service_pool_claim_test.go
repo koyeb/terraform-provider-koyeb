@@ -403,23 +403,6 @@ func TestResourceKoyebServicePoolClaimDeleteErrorsOnServiceDeletionFailure(t *te
 	}
 }
 
-// shortenClaimWaits collapses the claim wait and service poll intervals and
-// timeouts so wait tests run in milliseconds; restore happens via t.Cleanup.
-func shortenClaimWaits(t *testing.T) {
-	t.Helper()
-	originalTimeout := claimWaitTimeout
-	originalInterval := claimWaitInterval
-	originalRetry := waitRetryInterval
-	claimWaitTimeout = 250 * time.Millisecond
-	claimWaitInterval = 5 * time.Millisecond
-	waitRetryInterval = 5 * time.Millisecond
-	t.Cleanup(func() {
-		claimWaitTimeout = originalTimeout
-		claimWaitInterval = originalInterval
-		waitRetryInterval = originalRetry
-	})
-}
-
 // claimWaitTestServer serves the pool lookup, the claim call, a GetClaim
 // that reports PENDING on the first poll and the given status afterwards,
 // and a GetService for the claimed service that reports STARTING on the
@@ -435,20 +418,14 @@ func claimWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *i
 		case "/v1/claim":
 			_, _ = w.Write([]byte(`{"claim_id":"claim-uuid","service_id":"service-uuid","prewarmed":true}`))
 		case "/v1/claims/claim-uuid":
-			status := "PENDING"
-			if n := atomic.AddInt32(&gets, 1); n > 1 {
-				status = finalStatus
-			}
+			status := firstPollThen(&gets, "PENDING", finalStatus)
 			_, _ = w.Write([]byte(`{"claim":{"id":"claim-uuid","pool_id":"pool-uuid",` +
 				`"service_id":"service-uuid","request_id":"req-42","status":"` + status + `",` +
 				`"organization_id":"org-id","workspace_id":"ws-id","customer_id":"customer-id",` +
 				`"created_at":"2026-09-18T13:10:00Z","fulfilled_at":"2026-09-18T13:10:01Z",` +
 				`"pool_generation":"3"}}`))
 		case "/v1/services/service-uuid":
-			status := "STARTING"
-			if atomic.AddInt32(&serviceGets, 1) > 1 {
-				status = "HEALTHY"
-			}
+			status := firstPollThen(&serviceGets, "STARTING", "HEALTHY")
 			_, _ = w.Write([]byte(`{"service":{"id":"service-uuid","status":"` + status + `"}}`))
 		default:
 			http.NotFound(w, r)
@@ -458,7 +435,7 @@ func claimWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *i
 }
 
 func TestResourceKoyebServicePoolClaimCreateWaitsForFulfilled(t *testing.T) {
-	shortenClaimWaits(t)
+	shortenWaits(t)
 	srv, gets, _ := claimWaitTestServer(t, "FULFILLED")
 	defer srv.Close()
 
@@ -484,7 +461,7 @@ func TestResourceKoyebServicePoolClaimCreateWaitsForFulfilled(t *testing.T) {
 }
 
 func TestResourceKoyebServicePoolClaimCreateFailsWhenClaimFailed(t *testing.T) {
-	shortenClaimWaits(t)
+	shortenWaits(t)
 	srv, gets, _ := claimWaitTestServer(t, "FAILED")
 	defer srv.Close()
 
@@ -510,7 +487,7 @@ func TestResourceKoyebServicePoolClaimCreateFailsWhenClaimFailed(t *testing.T) {
 }
 
 func TestResourceKoyebServicePoolClaimCreateTimesOutWhenPending(t *testing.T) {
-	shortenClaimWaits(t)
+	shortenWaits(t)
 	srv, _, _ := claimWaitTestServer(t, "PENDING")
 	defer srv.Close()
 
@@ -557,7 +534,7 @@ func TestWaitForClaimFulfilledHonorsContextCancellation(t *testing.T) {
 }
 
 func TestResourceKoyebServicePoolClaimCreateFailsWhenClaimReleased(t *testing.T) {
-	shortenClaimWaits(t)
+	shortenWaits(t)
 	srv, gets, _ := claimWaitTestServer(t, "RELEASED")
 	defer srv.Close()
 
@@ -583,7 +560,7 @@ func TestResourceKoyebServicePoolClaimCreateFailsWhenClaimReleased(t *testing.T)
 }
 
 func TestResourceKoyebServicePoolClaimCreateWaitsForClaimedService(t *testing.T) {
-	shortenClaimWaits(t)
+	shortenWaits(t)
 	srv, _, serviceGets := claimWaitTestServer(t, "FULFILLED")
 	defer srv.Close()
 

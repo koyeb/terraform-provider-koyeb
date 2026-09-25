@@ -196,7 +196,7 @@ func resourceKoyebServicePoolClaimCreate(
 	// The server stamps FULFILLED when the service is created, not when it
 	// is ready; mirror the Python SDK's wait_claim_ready so the exported
 	// service_id is usable when apply reports success.
-	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, res.GetServiceId()).Execute, "Service", serviceReadyStatuses, claimWaitTimeout, true, serviceTerminalStatuses...); err != nil {
+	if err := waitForServiceReady(ctx, client, res.GetServiceId(), claimWaitTimeout); err != nil {
 		return diag.Errorf("Error waiting for claimed service to be ready: %s", err)
 	}
 

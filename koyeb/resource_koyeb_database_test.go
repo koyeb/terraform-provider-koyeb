@@ -484,10 +484,7 @@ func databaseWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server,
 		case "POST /v1/services":
 			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db"}}`))
 		case "GET /v1/services/" + testServiceUUID:
-			status := "STARTING"
-			if n := atomic.AddInt32(&gets, 1); n > 1 {
-				status = finalStatus
-			}
+			status := firstPollThen(&gets, "STARTING", finalStatus)
 			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db","status":"` + status + `"}}`))
 		default:
 			http.NotFound(w, r)
@@ -497,7 +494,7 @@ func databaseWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server,
 }
 
 func TestResourceKoyebDatabaseCreateWaitsForDatabaseHealth(t *testing.T) {
-	shortenServiceWaits(t)
+	shortenWaits(t)
 	srv, gets := databaseWaitTestServer(t, "HEALTHY")
 	defer srv.Close()
 
@@ -522,7 +519,7 @@ func TestResourceKoyebDatabaseCreateWaitsForDatabaseHealth(t *testing.T) {
 }
 
 func TestResourceKoyebDatabaseUpdateWaitsForDatabaseHealth(t *testing.T) {
-	shortenServiceWaits(t)
+	shortenWaits(t)
 	srv, gets := databaseWaitTestServer(t, "HEALTHY")
 	defer srv.Close()
 

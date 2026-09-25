@@ -583,21 +583,6 @@ func TestResourceKoyebServicePoolDeleteErrorsOnAPIError(t *testing.T) {
 	}
 }
 
-// shortenPoolWaits collapses the readiness poll interval and timeout so
-// wait tests run in milliseconds; restore happens via t.Cleanup. Mutating
-// these package vars requires tests that do not use t.Parallel().
-func shortenPoolWaits(t *testing.T) {
-	t.Helper()
-	originalInterval := waitRetryInterval
-	originalTimeout := servicePoolReadinessTimeout
-	waitRetryInterval = 5 * time.Millisecond
-	servicePoolReadinessTimeout = 250 * time.Millisecond
-	t.Cleanup(func() {
-		waitRetryInterval = originalInterval
-		servicePoolReadinessTimeout = originalTimeout
-	})
-}
-
 // poolWaitTestServer serves a create/update reply and a GetServicePool that
 // reports PROVISIONING on the first poll and the given status afterwards.
 func poolWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *int32) {
@@ -609,10 +594,7 @@ func poolWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *in
 		case "POST /v1/service_pools", "PUT /v1/service_pools/pool-uuid":
 			_, _ = w.Write([]byte(`{"service_pool":{"id":"pool-uuid","name":"my-pool","size":1}}`))
 		case "GET /v1/service_pools/pool-uuid":
-			status := "PROVISIONING"
-			if n := atomic.AddInt32(&gets, 1); n > 1 {
-				status = finalStatus
-			}
+			status := firstPollThen(&gets, "PROVISIONING", finalStatus)
 			_, _ = w.Write([]byte(`{"service_pool":{"id":"pool-uuid","name":"my-pool","size":1,` +
 				`"ready_count":1,"status":"` + status + `","organization_id":"org-id","workspace_id":"ws-id",` +
 				`"generation":"1","messages":[],"created_at":"2026-09-18T13:00:00Z","updated_at":"2026-09-18T13:00:00Z"}}`))
@@ -624,7 +606,7 @@ func poolWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *in
 }
 
 func TestResourceKoyebServicePoolCreateWaitsForPoolReady(t *testing.T) {
-	shortenPoolWaits(t)
+	shortenWaits(t)
 	srv, gets := poolWaitTestServer(t, "READY")
 	defer srv.Close()
 
@@ -658,7 +640,7 @@ func TestResourceKoyebServicePoolCreateWaitsForPoolReady(t *testing.T) {
 }
 
 func TestResourceKoyebServicePoolCreateFailsWhenPoolNeverReady(t *testing.T) {
-	shortenPoolWaits(t)
+	shortenWaits(t)
 	srv, _ := poolWaitTestServer(t, "PROVISIONING")
 	defer srv.Close()
 
@@ -689,7 +671,7 @@ func TestResourceKoyebServicePoolCreateFailsWhenPoolNeverReady(t *testing.T) {
 }
 
 func TestResourceKoyebServicePoolUpdateWaitsForPoolReady(t *testing.T) {
-	shortenPoolWaits(t)
+	shortenWaits(t)
 	srv, gets := poolWaitTestServer(t, "READY")
 	defer srv.Close()
 
@@ -723,7 +705,7 @@ func TestResourceKoyebServicePoolUpdateWaitsForPoolReady(t *testing.T) {
 }
 
 func TestResourceKoyebServicePoolCreateFailsFastWhenPoolErrors(t *testing.T) {
-	shortenPoolWaits(t)
+	shortenWaits(t)
 	srv, gets := poolWaitTestServer(t, "ERROR")
 	defer srv.Close()
 

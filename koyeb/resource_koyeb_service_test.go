@@ -1223,21 +1223,6 @@ func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
 	}
 }
 
-// shortenServiceWaits collapses the readiness poll interval and timeout so
-// wait tests run in milliseconds; restore happens via t.Cleanup. Mutating
-// these package vars requires tests that do not use t.Parallel().
-func shortenServiceWaits(t *testing.T) {
-	t.Helper()
-	originalInterval := waitRetryInterval
-	originalTimeout := serviceReadinessTimeout
-	waitRetryInterval = 5 * time.Millisecond
-	serviceReadinessTimeout = 250 * time.Millisecond
-	t.Cleanup(func() {
-		waitRetryInterval = originalInterval
-		serviceReadinessTimeout = originalTimeout
-	})
-}
-
 // serviceWaitTestServer serves a create/update reply and a GetService that
 // reports STARTING on the first poll and the given status afterwards.
 func serviceWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *int32) {
@@ -1249,10 +1234,7 @@ func serviceWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, 
 		case "POST /v1/services", "PUT /v1/services/" + testServiceUUID:
 			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service"}}`))
 		case "GET /v1/services/" + testServiceUUID:
-			status := "STARTING"
-			if n := atomic.AddInt32(&gets, 1); n > 1 {
-				status = finalStatus
-			}
+			status := firstPollThen(&gets, "STARTING", finalStatus)
 			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service","status":"` + status + `"}}`))
 		default:
 			http.NotFound(w, r)
@@ -1277,7 +1259,7 @@ func testServiceRawDefinition() map[string]interface{} {
 func TestResourceKoyebServiceCreateWaitsForServiceHealth(t *testing.T) {
 	for _, finalStatus := range []string{"HEALTHY", "DEGRADED"} {
 		t.Run(finalStatus, func(t *testing.T) {
-			shortenServiceWaits(t)
+			shortenWaits(t)
 			srv, gets := serviceWaitTestServer(t, finalStatus)
 			defer srv.Close()
 
@@ -1307,7 +1289,7 @@ func TestResourceKoyebServiceCreateWaitsForServiceHealth(t *testing.T) {
 }
 
 func TestResourceKoyebServiceCreateFailsWhenServiceNeverHealthy(t *testing.T) {
-	shortenServiceWaits(t)
+	shortenWaits(t)
 	srv, _ := serviceWaitTestServer(t, "STARTING")
 	defer srv.Close()
 
@@ -1330,7 +1312,7 @@ func TestResourceKoyebServiceCreateFailsWhenServiceNeverHealthy(t *testing.T) {
 }
 
 func TestResourceKoyebServiceUpdateWaitsForServiceHealth(t *testing.T) {
-	shortenServiceWaits(t)
+	shortenWaits(t)
 	srv, gets := serviceWaitTestServer(t, "HEALTHY")
 	defer srv.Close()
 
@@ -1363,7 +1345,7 @@ func TestResourceKoyebServiceUpdateWaitsForServiceHealth(t *testing.T) {
 }
 
 func TestResourceKoyebServiceCreateFailsFastWhenServiceUnhealthy(t *testing.T) {
-	shortenServiceWaits(t)
+	shortenWaits(t)
 	srv, gets := serviceWaitTestServer(t, "UNHEALTHY")
 	defer srv.Close()
 

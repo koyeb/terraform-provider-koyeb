@@ -2180,6 +2180,10 @@ var (
 	serviceTerminalStatuses = []string{"UNHEALTHY", "DELETING", "DELETED", "PAUSING", "PAUSED"}
 )
 
+func waitForServiceReady(ctx context.Context, client *koyeb.APIClient, serviceID string, timeout time.Duration) error {
+	return waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, serviceID).Execute, "Service", serviceReadyStatuses, timeout, true, serviceTerminalStatuses...)
+}
+
 func resourceKoyebService() *schema.Resource {
 	return &schema.Resource{
 		// This description is used by the documentation generator and the language server.
@@ -2253,7 +2257,7 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 
 	// Apply should not report success while the service is still starting;
 	// HEALTHY/DEGRADED is the usable set shared with the Python SDK.
-	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true, serviceTerminalStatuses...); err != nil {
+	if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
 		return diag.Errorf("Error waiting for service to be ready: %s", err)
 	}
 
@@ -2310,7 +2314,7 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 
 	log.Printf("[INFO] Updated service name: %s", *res.Service.Name)
 
-	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true, serviceTerminalStatuses...); err != nil {
+	if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
 		return diag.Errorf("Error waiting for service to be ready: %s", err)
 	}
 

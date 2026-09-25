@@ -37,19 +37,19 @@ func waitForResourceStatus[T any](ctx context.Context, fn func() (T, *_nethttp.R
 		var status string
 		switch v := any(res).(type) {
 		case *koyeb.GetServiceReply:
-			status = fmt.Sprintf("%v", v.Service.GetStatus())
+			status = string(v.Service.GetStatus())
 		case *koyeb.GetDeploymentReply:
-			status = fmt.Sprintf("%v", v.Deployment.GetStatus())
+			status = string(v.Deployment.GetStatus())
 		case *koyeb.GetDomainReply:
-			status = fmt.Sprintf("%v", v.Domain.GetStatus())
+			status = string(v.Domain.GetStatus())
 		case *koyeb.GetServicePoolReply:
-			status = fmt.Sprintf("%v", v.ServicePool.GetStatus())
+			status = string(v.ServicePool.GetStatus())
 		case *koyeb.GetPersistentVolumeReply:
-			status = fmt.Sprintf("%v", v.Volume.GetStatus())
+			status = string(v.Volume.GetStatus())
 		case *koyeb.GetSnapshotReply:
-			status = fmt.Sprintf("%v", v.Snapshot.GetStatus())
+			status = string(v.Snapshot.GetStatus())
 		case *koyeb.GetAppReply:
-			status = fmt.Sprintf("%v", v.App.GetStatus())
+			status = string(v.App.GetStatus())
 		default:
 			return fmt.Errorf("unknown resource type for wait on %s", resourceName)
 		}
