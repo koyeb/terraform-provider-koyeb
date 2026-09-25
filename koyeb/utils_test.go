@@ -48,7 +48,7 @@ func TestWaitForResourceStatusVolumeTimesOutWhenStuck(t *testing.T) {
 		client.PersistentVolumesApi.GetPersistentVolume(context.Background(), "vol-uuid").Execute,
 		"Volume", []string{"PERSISTENT_VOLUME_STATUS_DELETED", "PERSISTENT_VOLUME_STATUS_DELETING"}, 0, false,
 	)
-	if err == nil || !strings.Contains(err.Error(), "resource failed to reach target status") {
+	if err == nil || !strings.Contains(err.Error(), "timed out after") {
 		t.Fatalf("expected a timeout error for a stuck volume, got %v", err)
 	}
 }
@@ -112,7 +112,7 @@ func TestWaitForResourceStatusServicePoolTimesOutWhenStuck(t *testing.T) {
 		client.ServicePoolsApi.GetServicePool(context.Background(), "pool-uuid").Execute,
 		"ServicePool", []string{"DELETING"}, 0, false,
 	)
-	if err == nil || !strings.Contains(err.Error(), "resource failed to reach target status") {
+	if err == nil || !strings.Contains(err.Error(), "timed out after") {
 		t.Fatalf("expected a timeout error for a stuck pool, got %v", err)
 	}
 }
@@ -154,7 +154,7 @@ func TestWaitForResourceStatusSnapshotTimesOutWhenStuck(t *testing.T) {
 		client.SnapshotsApi.GetSnapshot(context.Background(), "snap-uuid").Execute,
 		"Snapshot", []string{"SNAPSHOT_STATUS_DELETED", "SNAPSHOT_STATUS_DELETING"}, 0, false,
 	)
-	if err == nil || !strings.Contains(err.Error(), "resource failed to reach target status") {
+	if err == nil || !strings.Contains(err.Error(), "timed out after") {
 		t.Fatalf("expected a timeout error for a stuck snapshot, got %v", err)
 	}
 }

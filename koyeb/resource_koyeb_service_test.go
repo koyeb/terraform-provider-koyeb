@@ -1354,3 +1354,29 @@ func TestResourceKoyebServiceUpdateWaitsForServiceHealth(t *testing.T) {
 		t.Errorf("expected the update to poll GetService at least twice, got %d polls", n)
 	}
 }
+
+func TestResourceKoyebServiceCreateFailsFastWhenServiceUnhealthy(t *testing.T) {
+	shortenServiceWaits(t)
+	srv, gets := serviceWaitTestServer(t, "UNHEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, serviceSchema(), map[string]interface{}{
+		"app_name":   "123e4567-e89b-42d3-a456-426614174000",
+		"definition": []interface{}{testServiceRawDefinition()},
+	})
+
+	diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "UNHEALTHY") {
+		t.Errorf("expected the diagnostic to surface the UNHEALTHY service status, got: %s", diags[0].Summary)
+	}
+	if n := atomic.LoadInt32(gets); n != 2 {
+		t.Errorf("expected the wait to stop at the first UNHEALTHY poll, got %d polls", n)
+	}
+}

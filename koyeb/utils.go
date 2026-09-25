@@ -2,7 +2,6 @@ package koyeb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	_nethttp "net/http"
 	"time"
@@ -15,11 +14,15 @@ func toOpt[T any](v T) *T {
 	return &v
 }
 
-// Poll interval between readiness checks; a variable so tests can shorten it.
+// Poll interval between readiness checks; a variable so tests can shorten
+// it. Mutating tests must not use t.Parallel().
 var waitRetryInterval = 5 * time.Second
 
-func waitForResourceStatus[T any](ctx context.Context, fn func() (T, *_nethttp.Response, error), resourceName string, targetStatus []string, timeout time.Duration, throwErrorIfNotFound bool) error {
-	var status string
+// waitForResourceStatus polls fn until the resource reaches targetStatus,
+// failing fast when it lands in any of the optional terminalStatuses.
+// Mirrors the Python SDK's fail-closed classification.
+func waitForResourceStatus[T any](ctx context.Context, fn func() (T, *_nethttp.Response, error), resourceName string, targetStatus []string, timeout time.Duration, throwErrorIfNotFound bool, terminalStatuses ...string) error {
+	lastStatus := "unknown"
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
@@ -31,6 +34,7 @@ func waitForResourceStatus[T any](ctx context.Context, fn func() (T, *_nethttp.R
 			return err
 		}
 
+		var status string
 		switch v := any(res).(type) {
 		case *koyeb.GetServiceReply:
 			status = fmt.Sprintf("%v", v.Service.GetStatus())
@@ -47,11 +51,15 @@ func waitForResourceStatus[T any](ctx context.Context, fn func() (T, *_nethttp.R
 		case *koyeb.GetAppReply:
 			status = fmt.Sprintf("%v", v.App.GetStatus())
 		default:
-			return errors.New("unknown resource type")
+			return fmt.Errorf("unknown resource type for wait on %s", resourceName)
 		}
 
+		lastStatus = status
 		if slices.Contains(targetStatus, status) {
 			return nil
+		}
+		if slices.Contains(terminalStatuses, status) {
+			return fmt.Errorf("%s reached terminal status %s", resourceName, status)
 		}
 		select {
 		case <-ctx.Done():
@@ -60,5 +68,5 @@ func waitForResourceStatus[T any](ctx context.Context, fn func() (T, *_nethttp.R
 		}
 	}
 
-	return errors.New("resource failed to reach target status after timeout")
+	return fmt.Errorf("wait for %s timed out after %s (last status %s)", resourceName, timeout, lastStatus)
 }

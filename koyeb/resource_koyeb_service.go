@@ -2173,8 +2173,12 @@ func flattenDeploymentDefinition(deployment *koyeb.DeploymentDefinition) []inter
 var serviceReadinessTimeout = 10 * time.Minute
 
 // serviceReadyStatuses mirrors the Python SDK's classify_service_status:
-// HEALTHY and DEGRADED are usable, everything else keeps polling.
-var serviceReadyStatuses = []string{"HEALTHY", "DEGRADED"}
+// HEALTHY and DEGRADED are usable, STARTING and RESUMING keep polling, and
+// every other state is terminal.
+var (
+	serviceReadyStatuses    = []string{"HEALTHY", "DEGRADED"}
+	serviceTerminalStatuses = []string{"UNHEALTHY", "DELETING", "DELETED", "PAUSING", "PAUSED"}
+)
 
 func resourceKoyebService() *schema.Resource {
 	return &schema.Resource{
@@ -2248,7 +2252,7 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 
 	// Apply should not report success while the service is still starting;
 	// HEALTHY/DEGRADED is the usable set shared with the Python SDK.
-	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true); err != nil {
+	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true, serviceTerminalStatuses...); err != nil {
 		return diag.Errorf("Error waiting for service to be ready: %s", err)
 	}
 
@@ -2305,7 +2309,7 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 
 	log.Printf("[INFO] Updated service name: %s", *res.Service.Name)
 
-	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true); err != nil {
+	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true, serviceTerminalStatuses...); err != nil {
 		return diag.Errorf("Error waiting for service to be ready: %s", err)
 	}
 

@@ -12,8 +12,12 @@ import (
 )
 
 // Readiness budget for created and updated pools; a variable so tests
-// can shorten it.
-var servicePoolReadinessTimeout = 5 * time.Minute
+// can shorten it. ERROR is terminal: a pool that errored while prewarming
+// never becomes READY.
+var (
+	servicePoolReadinessTimeout = 5 * time.Minute
+	servicePoolTerminalStatuses = []string{"ERROR"}
+)
 
 func servicePoolSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
@@ -148,7 +152,7 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 
 	// Pools prewarm asynchronously: apply should only report success once
 	// the pool, not just the API call, is READY.
-	if err := waitForResourceStatus(ctx, client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute, "ServicePool", []string{"READY"}, servicePoolReadinessTimeout, true); err != nil {
+	if err := waitForResourceStatus(ctx, client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute, "ServicePool", []string{"READY"}, servicePoolReadinessTimeout, true, servicePoolTerminalStatuses...); err != nil {
 		return diag.Errorf("Error waiting for service pool to be ready: %s", err)
 	}
 
@@ -207,7 +211,7 @@ func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData,
 	pool := res.GetServicePool()
 	log.Printf("[INFO] Updated service pool name: %s", pool.GetName())
 
-	if err := waitForResourceStatus(ctx, client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute, "ServicePool", []string{"READY"}, servicePoolReadinessTimeout, true); err != nil {
+	if err := waitForResourceStatus(ctx, client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute, "ServicePool", []string{"READY"}, servicePoolReadinessTimeout, true, servicePoolTerminalStatuses...); err != nil {
 		return diag.Errorf("Error waiting for service pool to be ready: %s", err)
 	}
 

@@ -20,8 +20,9 @@ var (
 )
 
 // waitForClaimFulfilled polls GetClaim until the claim is FULFILLED,
-// surfacing FAILED immediately. Cold claims provision a service on demand,
-// so a pending claim is not yet usable.
+// surfacing FAILED and RELEASED immediately: neither can still become
+// FULFILLED. Cold claims provision a service on demand, so a pending
+// claim is not yet usable.
 func waitForClaimFulfilled(ctx context.Context, client *koyeb.APIClient, claimID string, timeout, interval time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
@@ -39,6 +40,8 @@ func waitForClaimFulfilled(ctx context.Context, client *koyeb.APIClient, claimID
 			return nil
 		case koyeb.POOLCLAIMSTATUS_FAILED:
 			return fmt.Errorf("claim %s reached status FAILED", claimID)
+		case koyeb.POOLCLAIMSTATUS_RELEASED:
+			return fmt.Errorf("claim %s reached status RELEASED", claimID)
 		}
 		if !time.Now().Before(deadline) {
 			return fmt.Errorf("claim %s did not reach FULFILLED within %s (last status %s)", claimID, timeout, status)
@@ -187,6 +190,13 @@ func resourceKoyebServicePoolClaimCreate(
 
 	if err := waitForClaimFulfilled(ctx, client, d.Id(), claimWaitTimeout, claimWaitInterval); err != nil {
 		return diag.Errorf("Error waiting for service pool claim to be fulfilled: %s", err)
+	}
+
+	// The server stamps FULFILLED when the service is created, not when it
+	// is ready; mirror the Python SDK's wait_claim_ready so the exported
+	// service_id is usable when apply reports success.
+	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, res.GetServiceId()).Execute, "Service", serviceReadyStatuses, claimWaitTimeout, true, serviceTerminalStatuses...); err != nil {
+		return diag.Errorf("Error waiting for claimed service to be ready: %s", err)
 	}
 
 	return resourceKoyebServicePoolClaimRead(ctx, d, meta)

@@ -720,3 +720,37 @@ func TestResourceKoyebServicePoolUpdateWaitsForPoolReady(t *testing.T) {
 		t.Errorf("expected the update to poll GetServicePool at least twice, got %d polls", n)
 	}
 }
+
+func TestResourceKoyebServicePoolCreateFailsFastWhenPoolErrors(t *testing.T) {
+	shortenPoolWaits(t)
+	srv, gets := poolWaitTestServer(t, "ERROR")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, servicePoolSchema(), map[string]interface{}{
+		"name": "my-pool",
+		"size": 1,
+		"definition": []interface{}{
+			map[string]interface{}{
+				"name": "pool",
+				"docker": []interface{}{
+					map[string]interface{}{"image": "koyeb/demo"},
+				},
+			},
+		},
+	})
+
+	diags := resourceKoyebServicePoolCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "ERROR") {
+		t.Errorf("expected the diagnostic to surface the ERROR pool status, got: %s", diags[0].Summary)
+	}
+	if n := atomic.LoadInt32(gets); n != 2 {
+		t.Errorf("expected the wait to stop at the first ERROR poll, got %d polls", n)
+	}
+}
