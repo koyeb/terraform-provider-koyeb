@@ -474,10 +474,12 @@ resource "koyeb_service" "bar" {
 		}
 		regions = ["fra", "tyo"]
 		git {
-		  // example-flask has no Dockerfile; this is the platform e2e's
-		  // docker-build fixture (nginx serving the build args as files).
-		  repository = "github.com/koyeb-bot/test-docker-build"
-		  branch = "master"
+		  // example-flask has no Dockerfile and the platform e2e's
+		  // docker-build fixture is private (the org's GitHub
+		  // integration cannot resolve its SHA), so build the public
+		  // express example instead.
+		  repository = "github.com/koyeb/example-expressjs"
+		  branch = "main"
 		  dockerfile {}
 		}
 	}
