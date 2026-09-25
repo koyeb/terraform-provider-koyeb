@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -396,5 +398,147 @@ func TestResourceKoyebServicePoolClaimDeleteErrorsOnServiceDeletionFailure(t *te
 	}
 	if got := d.Id(); got != "claim-uuid" {
 		t.Errorf("expected the claim ID to be preserved after a failed delete, got %q", got)
+	}
+}
+
+// shortenClaimWaits collapses the claim wait interval and timeout so wait
+// tests run in milliseconds; callers must defer the restore.
+func shortenClaimWaits(t *testing.T) {
+	t.Helper()
+	originalTimeout := claimWaitTimeout
+	originalInterval := claimWaitInterval
+	claimWaitTimeout = 250 * time.Millisecond
+	claimWaitInterval = 5 * time.Millisecond
+	t.Cleanup(func() {
+		claimWaitTimeout = originalTimeout
+		claimWaitInterval = originalInterval
+	})
+}
+
+// claimWaitTestServer serves the pool lookup, the claim call, and a GetClaim
+// that reports PENDING on the first poll and the given status afterwards.
+func claimWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *int32) {
+	t.Helper()
+	var gets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/service_pools":
+			_, _ = w.Write([]byte(`{"service_pools":[{"id":"pool-uuid","name":"my-pool"}]}`))
+		case "/v1/claim":
+			_, _ = w.Write([]byte(`{"claim_id":"claim-uuid","service_id":"service-uuid","prewarmed":true}`))
+		case "/v1/claims/claim-uuid":
+			status := "PENDING"
+			if n := atomic.AddInt32(&gets, 1); n > 1 {
+				status = finalStatus
+			}
+			_, _ = w.Write([]byte(`{"claim":{"id":"claim-uuid","pool_id":"pool-uuid",` +
+				`"service_id":"service-uuid","request_id":"req-42","status":"` + status + `",` +
+				`"organization_id":"org-id","workspace_id":"ws-id","customer_id":"customer-id",` +
+				`"created_at":"2026-09-18T13:10:00Z","fulfilled_at":"2026-09-18T13:10:01Z",` +
+				`"pool_generation":"3"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv, &gets
+}
+
+func TestResourceKoyebServicePoolClaimCreateWaitsForFulfilled(t *testing.T) {
+	shortenClaimWaits(t)
+	srv, gets := claimWaitTestServer(t, "FULFILLED")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, resourceKoyebServicePoolClaim().Schema, map[string]interface{}{
+		"pool":       "my-pool",
+		"request_id": "req-42",
+	})
+
+	diags := resourceKoyebServicePoolClaimCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "FULFILLED" {
+		t.Errorf("expected the create to return a FULFILLED claim, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the create to poll GetClaim at least twice, got %d polls", n)
+	}
+}
+
+func TestResourceKoyebServicePoolClaimCreateFailsWhenClaimFailed(t *testing.T) {
+	shortenClaimWaits(t)
+	srv, gets := claimWaitTestServer(t, "FAILED")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, resourceKoyebServicePoolClaim().Schema, map[string]interface{}{
+		"pool":       "my-pool",
+		"request_id": "req-42",
+	})
+
+	diags := resourceKoyebServicePoolClaimCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "FAILED") {
+		t.Errorf("expected the diagnostic to surface the FAILED claim status, got: %s", diags[0].Summary)
+	}
+	if n := atomic.LoadInt32(gets); n != 2 {
+		t.Errorf("expected the wait to stop at the first FAILED poll, got %d polls", n)
+	}
+}
+
+func TestResourceKoyebServicePoolClaimCreateTimesOutWhenPending(t *testing.T) {
+	shortenClaimWaits(t)
+	srv, _ := claimWaitTestServer(t, "PENDING")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, resourceKoyebServicePoolClaim().Schema, map[string]interface{}{
+		"pool":       "my-pool",
+		"request_id": "req-42",
+	})
+
+	start := time.Now()
+	diags := resourceKoyebServicePoolClaimCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "did not reach FULFILLED") {
+		t.Errorf("expected a claim wait timeout error, got: %s", diags[0].Summary)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("expected the timeout to surface quickly for tests, took %s", elapsed)
+	}
+}
+
+func TestWaitForClaimFulfilledHonorsContextCancellation(t *testing.T) {
+	srv, _ := claimWaitTestServer(t, "PENDING")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+	err := waitForClaimFulfilled(ctx, koyeb.NewAPIClient(cfg), "claim-uuid", time.Minute, time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "cancel") {
+		t.Fatalf("expected a cancellation error, got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("expected the wait to unblock immediately, took %s", elapsed)
 	}
 }

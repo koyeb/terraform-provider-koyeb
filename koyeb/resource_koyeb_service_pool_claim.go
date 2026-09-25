@@ -2,11 +2,54 @@ package koyeb
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
+
+// Claim wait budget and poll interval, mirroring the Python SDK's
+// DEFAULT_CLAIM_WAIT_TIMEOUT and DEFAULT_CLAIM_POLL_INTERVAL; variables so
+// tests can shorten them.
+var (
+	claimWaitTimeout  = 300 * time.Second
+	claimWaitInterval = 2 * time.Second
+)
+
+// waitForClaimFulfilled polls GetClaim until the claim is FULFILLED,
+// surfacing FAILED immediately. Cold claims provision a service on demand,
+// so a pending claim is not yet usable.
+func waitForClaimFulfilled(ctx context.Context, client *koyeb.APIClient, claimID string, timeout, interval time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		res, resp, err := client.PoolClaimsApi.GetClaim(ctx, claimID).Execute()
+		if err != nil {
+			if resp != nil && resp.StatusCode == http.StatusNotFound {
+				return fmt.Errorf("claim %s disappeared while waiting for fulfillment", claimID)
+			}
+			return err
+		}
+		claim := res.GetClaim()
+		status := claim.GetStatus()
+		switch status {
+		case koyeb.POOLCLAIMSTATUS_FULFILLED:
+			return nil
+		case koyeb.POOLCLAIMSTATUS_FAILED:
+			return fmt.Errorf("claim %s reached status FAILED", claimID)
+		}
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("claim %s did not reach FULFILLED within %s (last status %s)", claimID, timeout, status)
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for claim %s cancelled: %w", claimID, ctx.Err())
+		case <-time.After(interval):
+		}
+	}
+}
 
 // NOTE: A claim hands out a service detached from the pool, so destroying
 // the claim deletes that service via the public service API; the claim
@@ -140,6 +183,10 @@ func resourceKoyebServicePoolClaimCreate(
 	}
 	if err := d.Set("prewarmed", res.GetPrewarmed()); err != nil {
 		return diag.FromErr(err)
+	}
+
+	if err := waitForClaimFulfilled(ctx, client, d.Id(), claimWaitTimeout, claimWaitInterval); err != nil {
+		return diag.Errorf("Error waiting for service pool claim to be fulfilled: %s", err)
 	}
 
 	return resourceKoyebServicePoolClaimRead(ctx, d, meta)
