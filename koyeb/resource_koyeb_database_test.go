@@ -547,3 +547,47 @@ func TestResourceKoyebDatabaseUpdateWaitsForDatabaseHealth(t *testing.T) {
 		t.Errorf("expected the update to poll GetService at least twice, got %d polls", n)
 	}
 }
+
+// Database updates roll out a replacement deployment too: the wait must
+// verify the replacement, not the predecessor keeping the service healthy.
+func TestResourceKoyebDatabaseUpdateWaitsForReplacementDeployment(t *testing.T) {
+	shortenWaits(t)
+	var deploymentGets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "PUT /v1/services/" + testServiceUUID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db","latest_deployment_id":"dep-uuid"}}`))
+		case "GET /v1/services/" + testServiceUUID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-db",` +
+				`"status":"HEALTHY","latest_deployment_id":"dep-uuid"}}`))
+		case "GET /v1/deployments/dep-uuid":
+			status := firstPollThen(&deploymentGets, "STARTING", "HEALTHY")
+			_, _ = w.Write([]byte(`{"deployment":{"id":"dep-uuid","status":"` + status + `"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	state := &terraform.InstanceState{
+		ID: testServiceUUID,
+		Attributes: map[string]string{
+			"name":        "my-db",
+			"role_secret": "role-existing-secret",
+		},
+	}
+	d := resourceKoyebDatabase().Data(state)
+
+	diags := resourceKoyebDatabaseUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if n := atomic.LoadInt32(&deploymentGets); n < 2 {
+		t.Errorf("expected the update to poll GetDeployment at least twice, got %d polls", n)
+	}
+}

@@ -95,7 +95,7 @@ func databaseSchema() map[string]*schema.Schema {
 
 func resourceKoyebDatabase() *schema.Resource {
 	return &schema.Resource{
-		Description: "Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place. Create and update wait for the database service to become HEALTHY or DEGRADED before completing.",
+		Description: "Database resource in the Koyeb Terraform provider. A database is deployed as a service of type DATABASE inside an app named after the database; deleting the database deletes the service but leaves the app in place. Create and update wait for the database service to become HEALTHY or DEGRADED before completing; updates wait for the replacement deployment to become healthy.",
 
 		CreateContext: resourceKoyebDatabaseCreate,
 		ReadContext:   resourceKoyebDatabaseRead,
@@ -228,7 +228,11 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 
 	log.Printf("[INFO] Updated database name: %s", *res.Service.Name)
 
-	if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
+	if deploymentID := replacementDeploymentID(ctx, client, res.GetService()); deploymentID != "" {
+		if err := waitForDeploymentReady(ctx, client, deploymentID, serviceReadinessTimeout); err != nil {
+			return diag.Errorf("Error waiting for the replacement deployment to be ready: %s", err)
+		}
+	} else if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
 		return diag.Errorf("Error waiting for database to be ready: %s", err)
 	}
 

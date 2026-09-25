@@ -3,12 +3,12 @@
 page_title: "koyeb_service Resource - terraform-provider-koyeb"
 subcategory: ""
 description: |-
-  Service resource in the Koyeb Terraform provider. Create and update wait for the service to become HEALTHY or DEGRADED before completing.
+  Service resource in the Koyeb Terraform provider. Create and update wait for the service to become HEALTHY or DEGRADED before completing; updates wait for the replacement deployment to become healthy.
 ---
 
 # koyeb_service (Resource)
 
-Service resource in the Koyeb Terraform provider. Create and update wait for the service to become HEALTHY or DEGRADED before completing.
+Service resource in the Koyeb Terraform provider. Create and update wait for the service to become HEALTHY or DEGRADED before completing; updates wait for the replacement deployment to become healthy.
 
 ## Example Usage
 

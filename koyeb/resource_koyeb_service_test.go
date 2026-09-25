@@ -1369,3 +1369,123 @@ func TestResourceKoyebServiceCreateFailsFastWhenServiceUnhealthy(t *testing.T) {
 		t.Errorf("expected the wait to stop at the first UNHEALTHY poll, got %d polls", n)
 	}
 }
+
+// deploymentWaitTestServer serves a service update whose reply pins the
+// replacement deployment, a service GET that keeps reporting the OLD
+// deployment's HEALTHY, and a deployment that reports STARTING on the
+// first poll and finalStatus afterwards.
+func deploymentWaitTestServer(t *testing.T, pinsReply bool, finalStatus string) (*httptest.Server, *int32, *int32) {
+	t.Helper()
+	var serviceGets, deploymentGets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "PUT /v1/services/" + testServiceUUID:
+			latest := ""
+			if pinsReply {
+				latest = `,"latest_deployment_id":"dep-uuid"`
+			}
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service"` + latest + `}}`))
+		case "GET /v1/services/" + testServiceUUID:
+			atomic.AddInt32(&serviceGets, 1)
+			// The old deployment stays healthy through the rollout: the
+			// service-level status must never satisfy the update wait.
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service",` +
+				`"status":"HEALTHY","latest_deployment_id":"dep-uuid"}}`))
+		case "GET /v1/deployments/dep-uuid":
+			status := firstPollThen(&deploymentGets, "STARTING", finalStatus)
+			_, _ = w.Write([]byte(`{"deployment":{"id":"dep-uuid","status":"` + status + `"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv, &serviceGets, &deploymentGets
+}
+
+func testServiceUpdateState() *terraform.InstanceState {
+	return &terraform.InstanceState{
+		ID: testServiceUUID,
+		Attributes: map[string]string{
+			"app_name":                    "my-app",
+			"definition.#":                "1",
+			"definition.0.name":           "my-service",
+			"definition.0.docker.#":       "1",
+			"definition.0.docker.0.image": "koyeb/demo",
+		},
+	}
+}
+
+// An update must be verified against the REPLACEMENT deployment, not the
+// predecessor: the old deployment keeps the service-level status HEALTHY
+// through a rolling update, so only the pinned deployment's transition to
+// healthy proves the new version is live (mirrors the Python SDK fix
+// koyeb-python-sdk@10210e3).
+func TestResourceKoyebServiceUpdateWaitsForReplacementDeployment(t *testing.T) {
+	shortenWaits(t)
+	srv, _, deploymentGets := deploymentWaitTestServer(t, true, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := resourceKoyebService().Data(testServiceUpdateState())
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if n := atomic.LoadInt32(deploymentGets); n < 2 {
+		t.Errorf("expected the update to poll GetDeployment at least twice, got %d polls", n)
+	}
+}
+
+// The update reply does not always carry the replacement id; the live
+// service does, and pinning from it keeps the wait on the replacement.
+func TestResourceKoyebServiceUpdatePinsDeploymentFromService(t *testing.T) {
+	shortenWaits(t)
+	srv, serviceGets, deploymentGets := deploymentWaitTestServer(t, false, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := resourceKoyebService().Data(testServiceUpdateState())
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if n := atomic.LoadInt32(serviceGets); n < 1 {
+		t.Errorf("expected the pin to be read from the live service, got %d service polls", n)
+	}
+	if n := atomic.LoadInt32(deploymentGets); n < 2 {
+		t.Errorf("expected the update to poll GetDeployment at least twice, got %d polls", n)
+	}
+}
+
+// A replacement deployment that errors is terminal: the update fails fast
+// with the status instead of burning the whole budget.
+func TestResourceKoyebServiceUpdateFailsWhenReplacementErrors(t *testing.T) {
+	shortenWaits(t)
+	srv, _, deploymentGets := deploymentWaitTestServer(t, true, "ERROR")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := resourceKoyebService().Data(testServiceUpdateState())
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "ERROR") {
+		t.Errorf("expected the diagnostic to surface the ERROR deployment status, got: %s", diags[0].Summary)
+	}
+	if n := atomic.LoadInt32(deploymentGets); n != 2 {
+		t.Errorf("expected the wait to stop at the first ERROR poll, got %d polls", n)
+	}
+}

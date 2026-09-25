@@ -118,6 +118,14 @@ var (
 	serviceTerminalStatuses = []string{"UNHEALTHY", "DELETING", "DELETED", "PAUSING", "PAUSED"}
 )
 
+// Deployment statuses mirror the Python SDK's classify_deployment_status:
+// HEALTHY and DEGRADED are usable, the pre-ready states keep polling, and
+// every other known state is terminal.
+var (
+	deploymentReadyStatuses    = []string{"HEALTHY", "DEGRADED"}
+	deploymentTerminalStatuses = []string{"CANCELING", "CANCELED", "UNHEALTHY", "STOPPING", "STOPPED", "ERRORING", "ERROR", "STASHED", "SLEEPING"}
+)
+
 func waitForServiceReady(ctx context.Context, client *koyeb.APIClient, serviceID string, timeout time.Duration) error {
 	return waitForStatus(ctx, statusWait{
 		name:      "Service",
@@ -128,11 +136,39 @@ func waitForServiceReady(ctx context.Context, client *koyeb.APIClient, serviceID
 	}, serviceStatusPoller(ctx, client, serviceID))
 }
 
+func waitForDeploymentReady(ctx context.Context, client *koyeb.APIClient, deploymentID string, timeout time.Duration) error {
+	return waitForStatus(ctx, statusWait{
+		name:      "Deployment",
+		targets:   deploymentReadyStatuses,
+		terminals: deploymentTerminalStatuses,
+		timeout:   timeout,
+		interval:  waitRetryInterval,
+	}, deploymentStatusPoller(ctx, client, deploymentID))
+}
+
+// replacementDeploymentID pins the deployment the update rolled out, so
+// the readiness wait verifies the replacement instead of the predecessor:
+// during a rolling update the service-level status stays HEALTHY on the old
+// deployment (mirrors the Python SDK fix koyeb-python-sdk@10210e3). The id
+// comes from the update reply, falling back to the live service; empty
+// means neither exposed one and the caller waits on the service level.
+func replacementDeploymentID(ctx context.Context, client *koyeb.APIClient, service koyeb.Service) string {
+	if id := service.GetLatestDeploymentId(); id != "" {
+		return id
+	}
+	res, resp, err := client.ServicesApi.GetService(ctx, service.GetId()).Execute()
+	if err != nil || resp == nil || resp.StatusCode != 200 {
+		return ""
+	}
+	live := res.GetService()
+	return live.GetLatestDeploymentId()
+}
+
 func resourceKoyebService() *schema.Resource {
 	return &schema.Resource{
 		// This description is used by the documentation generator and the language server.
 		Description: "Service resource in the Koyeb Terraform provider. " +
-			"Create and update wait for the service to become HEALTHY or DEGRADED before completing.",
+			"Create and update wait for the service to become HEALTHY or DEGRADED before completing; updates wait for the replacement deployment to become healthy.",
 
 		CreateContext: resourceKoyebServiceCreate,
 		ReadContext:   resourceKoyebServiceRead,
@@ -256,7 +292,11 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 
 	log.Printf("[INFO] Updated service name: %s", *res.Service.Name)
 
-	if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
+	if deploymentID := replacementDeploymentID(ctx, client, res.GetService()); deploymentID != "" {
+		if err := waitForDeploymentReady(ctx, client, deploymentID, serviceReadinessTimeout); err != nil {
+			return diag.Errorf("Error waiting for the replacement deployment to be ready: %s", err)
+		}
+	} else if err := waitForServiceReady(ctx, client, d.Id(), serviceReadinessTimeout); err != nil {
 		return diag.Errorf("Error waiting for service to be ready: %s", err)
 	}
 
