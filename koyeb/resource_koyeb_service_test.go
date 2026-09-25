@@ -4,10 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -1216,5 +1220,137 @@ func TestDeploymentDefinitionSchemaMatchesAPIDefaults(t *testing.T) {
 	}
 	if got := s["mesh"].Default; got != "DEPLOYMENT_MESH_AUTO" {
 		t.Errorf("expected mesh default DEPLOYMENT_MESH_AUTO, got %v", got)
+	}
+}
+
+// shortenServiceWaits collapses the readiness poll interval and timeout so
+// wait tests run in milliseconds; callers must defer the restore.
+func shortenServiceWaits(t *testing.T) {
+	t.Helper()
+	originalInterval := waitRetryInterval
+	originalTimeout := serviceReadinessTimeout
+	waitRetryInterval = 5 * time.Millisecond
+	serviceReadinessTimeout = 250 * time.Millisecond
+	t.Cleanup(func() {
+		waitRetryInterval = originalInterval
+		serviceReadinessTimeout = originalTimeout
+	})
+}
+
+// serviceWaitTestServer serves a create/update reply and a GetService that
+// reports STARTING on the first poll and the given status afterwards.
+func serviceWaitTestServer(t *testing.T, finalStatus string) (*httptest.Server, *int32) {
+	t.Helper()
+	var gets int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/services", "PUT /v1/services/" + testServiceUUID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service"}}`))
+		case "GET /v1/services/" + testServiceUUID:
+			status := "STARTING"
+			if n := atomic.AddInt32(&gets, 1); n > 1 {
+				status = finalStatus
+			}
+			_, _ = w.Write([]byte(`{"service":{"id":"` + testServiceUUID + `","name":"my-service","status":"` + status + `"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv, &gets
+}
+
+const testServiceUUID = "123e4567-e89b-42d3-a456-426614174001"
+
+func testServiceRawDefinition() map[string]interface{} {
+	return map[string]interface{}{
+		"name": "my-service",
+		"docker": []interface{}{
+			map[string]interface{}{"image": "koyeb/demo"},
+		},
+	}
+}
+
+func TestResourceKoyebServiceCreateWaitsForServiceHealth(t *testing.T) {
+	shortenServiceWaits(t)
+	srv, gets := serviceWaitTestServer(t, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	// A UUIDv4 app name short-circuits the app mapper, so the mock only
+	// needs the service endpoints.
+	d := schema.TestResourceDataRaw(t, serviceSchema(), map[string]interface{}{
+		"app_name":   "123e4567-e89b-42d3-a456-426614174000",
+		"definition": []interface{}{testServiceRawDefinition()},
+	})
+
+	diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "HEALTHY" {
+		t.Errorf("expected the create to return a HEALTHY service, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the create to poll GetService at least twice, got %d polls", n)
+	}
+}
+
+func TestResourceKoyebServiceCreateFailsWhenServiceNeverHealthy(t *testing.T) {
+	shortenServiceWaits(t)
+	srv, _ := serviceWaitTestServer(t, "STARTING")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, serviceSchema(), map[string]interface{}{
+		"app_name":   "123e4567-e89b-42d3-a456-426614174000",
+		"definition": []interface{}{testServiceRawDefinition()},
+	})
+
+	diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "Error waiting for service") {
+		t.Errorf("expected a wait-failure error, got: %s", diags[0].Summary)
+	}
+}
+
+func TestResourceKoyebServiceUpdateWaitsForServiceHealth(t *testing.T) {
+	shortenServiceWaits(t)
+	srv, gets := serviceWaitTestServer(t, "HEALTHY")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	state := &terraform.InstanceState{
+		ID: testServiceUUID,
+		Attributes: map[string]string{
+			"app_name":                    "my-app",
+			"definition.#":                "1",
+			"definition.0.name":           "my-service",
+			"definition.0.docker.#":       "1",
+			"definition.0.docker.0.image": "koyeb/demo",
+		},
+	}
+	d := resourceKoyebService().Data(state)
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %v", diags)
+	}
+	if got := d.Get("status").(string); got != "HEALTHY" {
+		t.Errorf("expected the update to return a HEALTHY service, got %q", got)
+	}
+	if n := atomic.LoadInt32(gets); n < 2 {
+		t.Errorf("expected the update to poll GetService at least twice, got %d polls", n)
 	}
 }

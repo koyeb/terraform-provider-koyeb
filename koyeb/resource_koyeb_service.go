@@ -5,6 +5,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -2167,6 +2168,14 @@ func flattenDeploymentDefinition(deployment *koyeb.DeploymentDefinition) []inter
 	return result
 }
 
+// Readiness budget for created and updated services; a variable so tests
+// can shorten it.
+var serviceReadinessTimeout = 10 * time.Minute
+
+// serviceReadyStatuses mirrors the Python SDK's classify_service_status:
+// HEALTHY and DEGRADED are usable, everything else keeps polling.
+var serviceReadyStatuses = []string{"HEALTHY", "DEGRADED"}
+
 func resourceKoyebService() *schema.Resource {
 	return &schema.Resource{
 		// This description is used by the documentation generator and the language server.
@@ -2237,6 +2246,12 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 	d.SetId(*res.Service.Id)
 	log.Printf("[INFO] Created service name: %s", *res.Service.Name)
 
+	// Apply should not report success while the service is still starting;
+	// HEALTHY/DEGRADED is the usable set shared with the Python SDK.
+	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true); err != nil {
+		return diag.Errorf("Error waiting for service to be ready: %s", err)
+	}
+
 	return resourceKoyebServiceRead(ctx, d, meta)
 }
 
@@ -2289,6 +2304,10 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 	}
 
 	log.Printf("[INFO] Updated service name: %s", *res.Service.Name)
+
+	if err := waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, d.Id()).Execute, "Service", serviceReadyStatuses, serviceReadinessTimeout, true); err != nil {
+		return diag.Errorf("Error waiting for service to be ready: %s", err)
+	}
 
 	return resourceKoyebServiceRead(ctx, d, meta)
 
