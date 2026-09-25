@@ -22,7 +22,7 @@ func TestAccKoyebServicePool_Basic(t *testing.T) {
 	var pool koyeb.ServicePool
 	poolName := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebServicePoolDestroy,

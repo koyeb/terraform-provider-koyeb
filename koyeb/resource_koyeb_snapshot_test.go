@@ -155,7 +155,7 @@ func TestAccKoyebSnapshot_Basic(t *testing.T) {
 	snapshotName := randomTestName()
 	renamedSnapshotName := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebSnapshotDestroy,

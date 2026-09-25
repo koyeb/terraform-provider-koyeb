@@ -56,7 +56,7 @@ func TestAccKoyebApp_Basic(t *testing.T) {
 	var app koyeb.App
 	appName := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebAppDestroy,

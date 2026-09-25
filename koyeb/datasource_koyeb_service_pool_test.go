@@ -26,7 +26,7 @@ data "koyeb_service_pool" "bar" {
 	name = koyeb_service_pool.foo.name
 }`
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		Steps: []resource.TestStep{

@@ -53,7 +53,7 @@ func TestAccKoyebDomain_Basic(t *testing.T) {
 	appName := randomTestName()
 	domainName := appName + ".com"
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		CheckDestroy:      testAccCheckKoyebDomainDestroy,

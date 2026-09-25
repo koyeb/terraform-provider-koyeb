@@ -20,7 +20,7 @@ import (
 func TestAccKoyebServicePoolClaim_Basic(t *testing.T) {
 	requestID := randomTestName()
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
 		Steps: []resource.TestStep{

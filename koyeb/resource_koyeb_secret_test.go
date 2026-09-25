@@ -89,7 +89,7 @@ func TestAccKoyebSecret_Basic(t *testing.T) {
 			secretName := randomTestName() + "_" + cfg.nameSuffix
 			secretValue := randomTestName()
 
-			resource.ParallelTest(t, resource.TestCase{
+			resource.Test(t, resource.TestCase{
 				PreCheck:          func() { testAccPreCheck(t) },
 				ProviderFactories: testAccProviderFactories,
 				CheckDestroy:      testAccCheckKoyebSecretDestroy,
