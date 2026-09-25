@@ -422,6 +422,12 @@ resource "koyeb_service" "bar" {
 		  key   = "FOO"
 		  value = "BAR"
 		}
+		// The Procfile runs gunicorn on $PORT: without this env the app
+		// cannot bind the health-checked port and the deployment errors.
+		env {
+		  key   = "PORT"
+		  value = "8080"
+		}
 		routes {
 		  path = "/"
 		  port = 8080
@@ -468,8 +474,10 @@ resource "koyeb_service" "bar" {
 		}
 		regions = ["fra", "tyo"]
 		git {
-		  repository = "github.com/koyeb/example-flask"
-		  branch = "main"
+		  // example-flask has no Dockerfile; this is the platform e2e's
+		  // docker-build fixture (nginx serving the build args as files).
+		  repository = "github.com/koyeb-bot/test-docker-build"
+		  branch = "master"
 		  dockerfile {}
 		}
 	}
