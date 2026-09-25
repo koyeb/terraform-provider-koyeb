@@ -72,12 +72,14 @@ func testSweepSnapshot(string) error {
 		if strings.HasPrefix(s.GetName(), testNamePrefix) {
 			log.Printf("Destroying snapshot %s", s.GetName())
 
-			if _, _, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), s.GetId()).Execute(); err != nil {
-				// A snapshot still being upload cannot be deleted yet; it
-				// settles within minutes and the next sweep destroys it.
-				// Failing the sweep job here would skip the whole suite.
-				if isStillUploadingError(err) {
-					log.Printf("[WARN] skipping snapshot %s still being uploaded: %s", s.GetName(), err)
+			if _, resp, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), s.GetId()).Execute(); err != nil {
+				// A 400 is a transient precondition (still uploading, or
+				// already being deleted from an earlier sweep) and a 404
+				// means the snapshot is already gone; both clear on their
+				// own, so skipping keeps the sweep useful without failing
+				// the job and skipping the whole suite.
+				if resp != nil && (resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound) {
+					log.Printf("[WARN] skipping snapshot %s not deletable yet (HTTP %d): %s", s.GetName(), resp.StatusCode, err)
 					continue
 				}
 				return err
