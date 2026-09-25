@@ -1402,7 +1402,8 @@ func deploymentWaitTestServer(t *testing.T, pinsReply bool, finalStatus string) 
 				`"status":"HEALTHY","latest_deployment_id":"dep-uuid"}}`))
 		case "GET /v1/deployments/dep-uuid":
 			status := firstPollThen(&deploymentGets, "STARTING", finalStatus)
-			_, _ = w.Write([]byte(`{"deployment":{"id":"dep-uuid","status":"` + status + `"}}`))
+			_, _ = w.Write([]byte(`{"deployment":{"id":"dep-uuid","status":"` + status + `",` +
+				`"messages":["build failed: could not read source"]}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -1495,5 +1496,27 @@ func TestResourceKoyebServiceUpdateFailsWhenReplacementErrors(t *testing.T) {
 	}
 	if n := atomic.LoadInt32(deploymentGets); n != 2 {
 		t.Errorf("expected the wait to stop at the first ERROR poll, got %d polls", n)
+	}
+}
+
+// The deployment's own messages explain why it failed; the wait surfaces
+// them instead of a bare status.
+func TestResourceKoyebServiceUpdateSurfacesDeploymentMessages(t *testing.T) {
+	shortenWaits(t)
+	srv, _, _ := deploymentWaitTestServer(t, true, "ERROR")
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := resourceKoyebService().Data(testServiceUpdateState())
+
+	diags := resourceKoyebServiceUpdate(context.Background(), d, koyeb.NewAPIClient(cfg))
+
+	if len(diags) != 1 || diags[0].Severity != diag.Error {
+		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
+	}
+	if !strings.Contains(diags[0].Summary, "build failed: could not read source") {
+		t.Errorf("expected the diagnostic to surface the deployment messages, got: %s", diags[0].Summary)
 	}
 }

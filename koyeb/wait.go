@@ -172,13 +172,3 @@ func snapshotStatusPoller(ctx context.Context, client *koyeb.APIClient, id strin
 		})
 	}
 }
-
-func deploymentStatusPoller(ctx context.Context, client *koyeb.APIClient, id string) func() (string, error) {
-	return func() (string, error) {
-		res, resp, err := client.DeploymentsApi.GetDeployment(ctx, id).Execute()
-		return pollReply(res, resp, err, func(r *koyeb.GetDeploymentReply) string {
-			deployment := r.GetDeployment()
-			return string(deployment.GetStatus())
-		})
-	}
-}

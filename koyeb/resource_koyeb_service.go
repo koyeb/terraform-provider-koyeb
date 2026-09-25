@@ -2,6 +2,7 @@ package koyeb
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -137,13 +138,32 @@ func waitForServiceReady(ctx context.Context, client *koyeb.APIClient, serviceID
 }
 
 func waitForDeploymentReady(ctx context.Context, client *koyeb.APIClient, deploymentID string, timeout time.Duration) error {
-	return waitForStatus(ctx, statusWait{
+	// The deployment's messages say WHY it failed; keep the latest ones
+	// around so the surfaced error explains the status.
+	var lastMessages []string
+	poll := func() (string, error) {
+		res, resp, err := client.DeploymentsApi.GetDeployment(ctx, deploymentID).Execute()
+		if err == nil {
+			deployment := res.GetDeployment()
+			lastMessages = deployment.GetMessages()
+			return string(deployment.GetStatus()), nil
+		}
+		return pollReply(res, resp, err, func(r *koyeb.GetDeploymentReply) string {
+			deployment := r.GetDeployment()
+			return string(deployment.GetStatus())
+		})
+	}
+	err := waitForStatus(ctx, statusWait{
 		name:      "Deployment",
 		targets:   deploymentReadyStatuses,
 		terminals: deploymentTerminalStatuses,
 		timeout:   timeout,
 		interval:  waitRetryInterval,
-	}, deploymentStatusPoller(ctx, client, deploymentID))
+	}, poll)
+	if err != nil && len(lastMessages) > 0 {
+		return fmt.Errorf("%w; deployment messages: %s", err, strings.Join(lastMessages, "; "))
+	}
+	return err
 }
 
 // replacementDeploymentID pins the deployment the update rolled out, so
