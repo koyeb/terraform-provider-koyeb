@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -109,7 +110,7 @@ func testAccCheckKoyebDomainDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.DomainsApi.GetDomain(context.Background(), rs.Primary.ID).Execute, "Domain", targetStatus, 1, false)
+		err := waitForResourceStatus(context.Background(), client.DomainsApi.GetDomain(context.Background(), rs.Primary.ID).Execute, "Domain", targetStatus, time.Minute, false)
 		if err != nil {
 			return fmt.Errorf("Domain still exists: %s ", err)
 		}

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -211,7 +212,7 @@ func testAccCheckKoyebDatabaseDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.ServicesApi.GetService(context.Background(), rs.Primary.ID).Execute, "Service", targetStatus, 1, false)
+		err := waitForResourceStatus(context.Background(), client.ServicesApi.GetService(context.Background(), rs.Primary.ID).Execute, "Service", targetStatus, time.Minute, false)
 		if err != nil {
 			return fmt.Errorf("Database still exists: %s", err)
 		}

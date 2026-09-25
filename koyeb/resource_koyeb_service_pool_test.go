@@ -89,8 +89,9 @@ func testAccCheckKoyebServicePoolDestroy(s *terraform.State) error {
 		}
 
 		err := waitForResourceStatus(
+			context.Background(),
 			client.ServicePoolsApi.GetServicePool(context.Background(), rs.Primary.ID).Execute,
-			"ServicePool", []string{"DELETING"}, 1, false,
+			"ServicePool", []string{"DELETING"}, time.Minute, false,
 		)
 		if err != nil {
 			return fmt.Errorf("Service pool still exists: %s", err)

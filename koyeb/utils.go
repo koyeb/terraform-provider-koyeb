@@ -1,6 +1,7 @@
 package koyeb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	_nethttp "net/http"
@@ -14,16 +15,17 @@ func toOpt[T any](v T) *T {
 	return &v
 }
 
-func waitForResourceStatus[T any](fn func() (T, *_nethttp.Response, error), resourceName string, targetStatus []string, timeout time.Duration, throwErrorIfNotFound bool) error {
-	var status string
-	now := time.Now()
-	retryInterval := 5 * time.Second
-	timeoutAt := time.Minute * timeout
+// Poll interval between readiness checks; a variable so tests can shorten it.
+var waitRetryInterval = 5 * time.Second
 
-	for time.Since(now) < timeoutAt {
+func waitForResourceStatus[T any](ctx context.Context, fn func() (T, *_nethttp.Response, error), resourceName string, targetStatus []string, timeout time.Duration, throwErrorIfNotFound bool) error {
+	var status string
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
 		res, resp, err := fn()
 		if err != nil {
-			if resp.StatusCode == 404 && !throwErrorIfNotFound {
+			if resp != nil && resp.StatusCode == 404 && !throwErrorIfNotFound {
 				return nil
 			}
 			return err
@@ -51,7 +53,11 @@ func waitForResourceStatus[T any](fn func() (T, *_nethttp.Response, error), reso
 		if slices.Contains(targetStatus, status) {
 			return nil
 		}
-		time.Sleep(retryInterval)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for %s cancelled: %w", resourceName, ctx.Err())
+		case <-time.After(waitRetryInterval):
+		}
 	}
 
 	return errors.New("resource failed to reach target status after timeout")

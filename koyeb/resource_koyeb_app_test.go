@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -106,7 +107,7 @@ func testAccCheckKoyebAppDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(client.AppsApi.GetApp(context.Background(), rs.Primary.ID).Execute, "App", targetStatus, 1, false)
+		err := waitForResourceStatus(context.Background(), client.AppsApi.GetApp(context.Background(), rs.Primary.ID).Execute, "App", targetStatus, time.Minute, false)
 		if err != nil {
 			return fmt.Errorf("App still exists: %s", err)
 		}
