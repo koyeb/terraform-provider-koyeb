@@ -465,7 +465,7 @@ resource "koyeb_service" "bar" {
 		}
 		type = "WORKER"
 		scalings {
-		  min = 1
+		  min = 0
 		  max = 1
 		}
 		env {
