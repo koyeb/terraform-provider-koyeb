@@ -92,12 +92,12 @@ func resourceKoyebSnapshot() *schema.Resource {
 // deleteSnapshotWhenUploaded deletes a snapshot, tolerating the window
 // where it is still being uploaded: the API rejects the delete with
 // failed_precondition until the upload completes.
-func deleteSnapshotWhenUploaded(client *koyeb.APIClient, id string, interval time.Duration) error {
+func deleteSnapshotWhenUploaded(ctx context.Context, client *koyeb.APIClient, id string, interval time.Duration) error {
 	// Uploading a snapshot can take several minutes on a busy volume.
 	const attempts = 60
 
 	for i := 0; i < attempts; i++ {
-		_, resp, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), id).Execute()
+		_, resp, err := client.SnapshotsApi.DeleteSnapshot(ctx, id).Execute()
 		if err == nil {
 			return nil
 		}
@@ -136,7 +136,7 @@ func setSnapshotAttribute(d *schema.ResourceData, snapshot koyeb.Snapshot) error
 func resourceKoyebSnapshotCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.SnapshotsApi.CreateSnapshot(context.Background()).Body(koyeb.CreateSnapshotRequest{
+	res, resp, err := client.SnapshotsApi.CreateSnapshot(ctx).Body(koyeb.CreateSnapshotRequest{
 		Name:           toOpt(d.Get("name").(string)),
 		ParentVolumeId: toOpt(d.Get("parent_volume_id").(string)),
 	}).Execute()
@@ -154,7 +154,7 @@ func resourceKoyebSnapshotCreate(ctx context.Context, d *schema.ResourceData, me
 func resourceKoyebSnapshotRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.SnapshotsApi.GetSnapshot(context.Background(), d.Id()).Execute()
+	res, resp, err := client.SnapshotsApi.GetSnapshot(ctx, d.Id()).Execute()
 	if err != nil {
 		// If the snapshot is somehow already destroyed, mark as
 		// successfully gone
@@ -174,7 +174,7 @@ func resourceKoyebSnapshotRead(ctx context.Context, d *schema.ResourceData, meta
 func resourceKoyebSnapshotUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.SnapshotsApi.UpdateSnapshot(context.Background(), d.Id()).Body(koyeb.UpdateSnapshotRequest{
+	res, resp, err := client.SnapshotsApi.UpdateSnapshot(ctx, d.Id()).Body(koyeb.UpdateSnapshotRequest{
 		Name: toOpt(d.Get("name").(string)),
 	}).Execute()
 
@@ -190,7 +190,7 @@ func resourceKoyebSnapshotUpdate(ctx context.Context, d *schema.ResourceData, me
 func resourceKoyebSnapshotDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	if err := deleteSnapshotWhenUploaded(client, d.Id(), 10*time.Second); err != nil {
+	if err := deleteSnapshotWhenUploaded(ctx, client, d.Id(), 10*time.Second); err != nil {
 		return diag.FromErr(err)
 	}
 

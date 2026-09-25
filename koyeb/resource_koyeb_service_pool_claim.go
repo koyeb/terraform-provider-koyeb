@@ -139,7 +139,7 @@ func resourceKoyebServicePoolClaimCreate(
 
 	name := d.Get("pool").(string)
 
-	pools, resp, err := client.ServicePoolsApi.ListServicePools(context.Background()).Name(name).Execute()
+	pools, resp, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
 	if err != nil {
 		return diag.Errorf("Error retrieving service pool: %s (%v %v)", err, resp, pools)
 	}
@@ -155,7 +155,7 @@ func resourceKoyebServicePoolClaimCreate(
 		return diag.Errorf("No service pool found with name %s", name)
 	}
 
-	res, resp, err := client.PoolClaimsApi.Claim(context.Background()).Body(koyeb.PoolClaimRequest{
+	res, resp, err := client.PoolClaimsApi.Claim(ctx).Body(koyeb.PoolClaimRequest{
 		PoolId:    toOpt(poolID),
 		RequestId: toOpt(d.Get("request_id").(string)),
 	}).Execute()
@@ -206,7 +206,7 @@ func resourceKoyebServicePoolClaimRead(
 ) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.PoolClaimsApi.GetClaim(context.Background(), d.Id()).Execute()
+	res, resp, err := client.PoolClaimsApi.GetClaim(ctx, d.Id()).Execute()
 	if err != nil {
 		if resp != nil && resp.StatusCode == 404 {
 			d.SetId("")
@@ -260,7 +260,7 @@ func resourceKoyebServicePoolClaimDelete(
 		return nil
 	}
 
-	res, resp, err := client.ServicesApi.DeleteService(context.Background(), serviceID).Execute()
+	res, resp, err := client.ServicesApi.DeleteService(ctx, serviceID).Execute()
 	if err != nil {
 		return diag.Errorf("Error deleting claimed service: %s (%v %v)", err, resp, res)
 	}

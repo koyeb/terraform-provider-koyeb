@@ -135,7 +135,7 @@ func setVolumeAttribute(d *schema.ResourceData, volume koyeb.PersistentVolume) e
 func resourceKoyebVolumeCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.PersistentVolumesApi.CreatePersistentVolume(context.Background()).Body(koyeb.CreatePersistentVolumeRequest{
+	res, resp, err := client.PersistentVolumesApi.CreatePersistentVolume(ctx).Body(koyeb.CreatePersistentVolumeRequest{
 		Name:       toOpt(d.Get("name").(string)),
 		VolumeType: toOpt(koyeb.PersistentVolumeBackingStore(d.Get("volume_type").(string))),
 		MaxSize:    toOpt(int64(d.Get("max_size").(int))),
@@ -167,7 +167,7 @@ func resourceKoyebVolumeRead(ctx context.Context, d *schema.ResourceData, meta i
 		volumeId = id
 	}
 
-	res, resp, err := client.PersistentVolumesApi.GetPersistentVolume(context.Background(), volumeId).Execute()
+	res, resp, err := client.PersistentVolumesApi.GetPersistentVolume(ctx, volumeId).Execute()
 	if err != nil {
 		// If the volume is somehow already destroyed, mark as
 		// successfully gone
@@ -187,7 +187,7 @@ func resourceKoyebVolumeRead(ctx context.Context, d *schema.ResourceData, meta i
 func resourceKoyebVolumeUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.PersistentVolumesApi.UpdatePersistentVolume(context.Background(), d.Id()).Body(koyeb.UpdatePersistentVolumeRequest{
+	res, resp, err := client.PersistentVolumesApi.UpdatePersistentVolume(ctx, d.Id()).Body(koyeb.UpdatePersistentVolumeRequest{
 		Name:    toOpt(d.Get("name").(string)),
 		MaxSize: toOpt(int64(d.Get("max_size").(int))),
 	}).Execute()
@@ -204,7 +204,7 @@ func resourceKoyebVolumeUpdate(ctx context.Context, d *schema.ResourceData, meta
 func resourceKoyebVolumeDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	if err := deleteVolumeWhenDetached(client, d.Id(), 10*time.Second); err != nil {
+	if err := deleteVolumeWhenDetached(ctx, client, d.Id(), 10*time.Second); err != nil {
 		return diag.FromErr(err)
 	}
 

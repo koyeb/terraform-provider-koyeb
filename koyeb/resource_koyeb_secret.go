@@ -358,7 +358,7 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 		secretId = id
 	}
 
-	res, resp, err := client.SecretsApi.GetSecret(context.Background(), secretId).Execute()
+	res, resp, err := client.SecretsApi.GetSecret(ctx, secretId).Execute()
 	if err != nil {
 		// If the Secret is somehow already destroyed, mark as
 		// successfully gone
@@ -371,7 +371,7 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 	}
 
 	body := make(map[string]interface{})
-	_, resp, err = client.SecretsApi.RevealSecret(context.Background(), secretId).Body(body).Execute()
+	_, resp, err = client.SecretsApi.RevealSecret(ctx, secretId).Body(body).Execute()
 	if resp.StatusCode != 200 && err != nil {
 		return diag.Errorf("Error retrieving secret value: %s", err)
 
@@ -437,7 +437,7 @@ func resourceKoyebSecretUpdate(ctx context.Context, d *schema.ResourceData, meta
 		secret.GcpContainerRegistry = expandRegistry(gcpContainerRegistry.(*schema.Set).List(), "gcp_container_registry").(*koyeb.GCPContainerRegistryConfiguration)
 	}
 
-	res, resp, err := client.SecretsApi.UpdateSecret(context.Background(), d.Id()).Secret(secret).Execute()
+	res, resp, err := client.SecretsApi.UpdateSecret(ctx, d.Id()).Secret(secret).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error updating secret: %s (%v %v)", err, resp, res)
@@ -451,7 +451,7 @@ func resourceKoyebSecretUpdate(ctx context.Context, d *schema.ResourceData, meta
 func resourceKoyebSecretDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.SecretsApi.DeleteSecret(context.Background(), d.Id()).Execute()
+	res, resp, err := client.SecretsApi.DeleteSecret(ctx, d.Id()).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error deleting secret: %s (%v %v)", err, resp, res)

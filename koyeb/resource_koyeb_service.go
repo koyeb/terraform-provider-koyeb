@@ -187,7 +187,7 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 
 	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicesApi.CreateService(context.Background()).Service(koyeb.CreateService{
+	res, resp, err := client.ServicesApi.CreateService(ctx).Service(koyeb.CreateService{
 		AppId:      &appId,
 		Definition: definition,
 	}).Execute()
@@ -221,7 +221,7 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 		serviceId = id
 	}
 
-	serviceRes, resp, err := client.ServicesApi.GetService(context.Background(), serviceId).Execute()
+	serviceRes, resp, err := client.ServicesApi.GetService(ctx, serviceId).Execute()
 	if err != nil {
 		// If the service is somehow already destroyed, mark as
 		// successfully gone
@@ -233,7 +233,7 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 		return diag.Errorf("Error retrieving service: %s (%v %v)", err, resp, serviceRes)
 	}
 
-	// deploymentRes, resp, err := client.DeploymentsApi.GetDeployment(context.Background(), *serviceRes.Service.LatestDeploymentId).Execute()
+	// deploymentRes, resp, err := client.DeploymentsApi.GetDeployment(ctx, *serviceRes.Service.LatestDeploymentId).Execute()
 	// if err != nil {
 	// 	return diag.Errorf("Error retrieving service latest deployment: %s (%v %v", err, resp, serviceRes)
 	// }
@@ -247,7 +247,7 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 	client := meta.(*koyeb.APIClient)
 
 	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
-	res, resp, err := client.ServicesApi.UpdateService(context.Background(), d.Id()).Service(koyeb.UpdateService{
+	res, resp, err := client.ServicesApi.UpdateService(ctx, d.Id()).Service(koyeb.UpdateService{
 		Definition: definition,
 	}).Execute()
 	if err != nil {
@@ -267,7 +267,7 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 func resourceKoyebServiceDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.ServicesApi.DeleteService(context.Background(), d.Id()).Execute()
+	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
 		return diag.Errorf("Error deleting service: %s (%v %v)", err, resp, res)
 	}

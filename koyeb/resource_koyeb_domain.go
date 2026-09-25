@@ -176,7 +176,7 @@ func resourceKoyebDomainCreate(ctx context.Context, d *schema.ResourceData, meta
 		appId = id
 	}
 
-	res, resp, err := client.DomainsApi.CreateDomain(context.Background()).Domain(koyeb.CreateDomain{
+	res, resp, err := client.DomainsApi.CreateDomain(ctx).Domain(koyeb.CreateDomain{
 		Name:  toOpt(d.Get("name").(string)),
 		AppId: &appId,
 		Type:  toOpt(koyeb.DOMAINTYPE_CUSTOM),
@@ -195,7 +195,7 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 	client := meta.(*koyeb.APIClient)
 	appName := ""
 
-	res, resp, err := client.DomainsApi.GetDomain(context.Background(), d.Id()).Execute()
+	res, resp, err := client.DomainsApi.GetDomain(ctx, d.Id()).Execute()
 	if err != nil {
 		// If the domain is somehow already destroyed, mark as
 		// successfully gone
@@ -208,7 +208,7 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 	}
 
 	if *res.Domain.AppId != "" {
-		res, resp, err := client.AppsApi.GetApp(context.Background(), *res.Domain.AppId).Execute()
+		res, resp, err := client.AppsApi.GetApp(ctx, *res.Domain.AppId).Execute()
 		if err != nil {
 			return diag.Errorf("Error retrieving app assigned to domain: %s (%v %v)", err, resp, res)
 		}
@@ -236,7 +236,7 @@ func resourceKoyebDomainUpdate(ctx context.Context, d *schema.ResourceData, meta
 		appId = id
 	}
 
-	res, resp, err := client.DomainsApi.UpdateDomain(context.Background(), d.Id()).Domain(koyeb.UpdateDomain{AppId: &appId}).Execute()
+	res, resp, err := client.DomainsApi.UpdateDomain(ctx, d.Id()).Domain(koyeb.UpdateDomain{AppId: &appId}).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error retrieving domain: %s (%v %v)", err, resp, res)
@@ -249,7 +249,7 @@ func resourceKoyebDomainUpdate(ctx context.Context, d *schema.ResourceData, meta
 func resourceKoyebDomainDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.DomainsApi.DeleteDomain(context.Background(), d.Id()).Execute()
+	res, resp, err := client.DomainsApi.DeleteDomain(ctx, d.Id()).Execute()
 
 	if err != nil {
 		return diag.Errorf("Error deleting domain: %s (%v %v)", err, resp, res)

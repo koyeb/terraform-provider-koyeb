@@ -31,7 +31,7 @@ func dataSourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData,
 
 	name := d.Get("name").(string)
 
-	res, resp, err := client.ServicePoolsApi.ListServicePools(context.Background()).Name(name).Execute()
+	res, resp, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
 	if err != nil {
 		return diag.Errorf("Error retrieving service pool: %s (%v %v)", err, resp, res)
 	}

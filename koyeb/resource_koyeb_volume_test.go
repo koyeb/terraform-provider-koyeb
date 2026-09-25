@@ -141,7 +141,7 @@ func TestDeleteVolumeWhenDetachedRetriesWhileAttached(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	if err := deleteVolumeWhenDetached(client, volumeID, 10*time.Millisecond); err != nil {
+	if err := deleteVolumeWhenDetached(context.Background(), client, volumeID, 10*time.Millisecond); err != nil {
 		t.Fatalf("expected the delete to eventually succeed, got %s", err)
 	}
 	if deletes != 3 {

@@ -150,7 +150,7 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 
 	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicePoolsApi.CreateServicePool(context.Background()).ServicePool(koyeb.CreateServicePool{
+	res, resp, err := client.ServicePoolsApi.CreateServicePool(ctx).ServicePool(koyeb.CreateServicePool{
 		Name:       toOpt(d.Get("name").(string)),
 		Size:       toOpt(int64(d.Get("size").(int))),
 		Definition: definition,
@@ -175,7 +175,7 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.ServicePoolsApi.GetServicePool(context.Background(), d.Id()).Execute()
+	res, resp, err := client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute()
 	if err != nil {
 		// If the service pool is somehow already destroyed, mark as
 		// successfully gone
@@ -212,7 +212,7 @@ func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData,
 
 	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
 
-	res, resp, err := client.ServicePoolsApi.UpdateServicePool(context.Background(), d.Id()).
+	res, resp, err := client.ServicePoolsApi.UpdateServicePool(ctx, d.Id()).
 		ServicePool(koyeb.UpdateServicePool{
 			Size:       toOpt(int64(d.Get("size").(int))),
 			Definition: definition,
@@ -237,7 +237,7 @@ func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData,
 func resourceKoyebServicePoolDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.ServicePoolsApi.DeleteServicePool(context.Background(), d.Id()).Execute()
+	res, resp, err := client.ServicePoolsApi.DeleteServicePool(ctx, d.Id()).Execute()
 	if err != nil {
 		return diag.Errorf("Error deleting service pool: %s (%v %v)", err, resp, res)
 	}

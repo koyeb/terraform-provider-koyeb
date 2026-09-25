@@ -46,7 +46,7 @@ func testSweepVolume(string) error {
 			log.Printf("Destroying volume %s", v.GetName())
 
 			// Services are swept first, but the detach is asynchronous.
-			if err := deleteVolumeWhenDetached(client, v.GetId(), 10*time.Second); err != nil {
+			if err := deleteVolumeWhenDetached(context.Background(), client, v.GetId(), 10*time.Second); err != nil {
 				return err
 			}
 		}
@@ -387,7 +387,7 @@ func TestDeleteSnapshotWhenUploadedRetriesWhileUploading(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	if err := deleteSnapshotWhenUploaded(client, snapshotID, 10*time.Millisecond); err != nil {
+	if err := deleteSnapshotWhenUploaded(context.Background(), client, snapshotID, 10*time.Millisecond); err != nil {
 		t.Fatalf("expected the delete to eventually succeed, got %s", err)
 	}
 	if deletes != 2 {

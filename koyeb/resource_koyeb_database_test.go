@@ -137,7 +137,7 @@ func TestAccKoyebDatabase_Basic(t *testing.T) {
 	// Skip when the organization's free instance quota is already
 	// consumed: that is an environment limit, not a code defect.
 	checkFreeQuota := func() {
-		if exhausted, err := freeInstanceQuotaExhausted(testAccProvider.Meta().(*koyeb.APIClient)); err == nil && exhausted {
+		if exhausted, err := freeInstanceQuotaExhausted(context.Background(), testAccProvider.Meta().(*koyeb.APIClient)); err == nil && exhausted {
 			t.Skip("skipping: the organization's free instance quota is exhausted")
 		}
 	}
@@ -413,7 +413,7 @@ func TestFreeInstanceQuotaExhausted(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	exhausted, err := freeInstanceQuotaExhausted(client)
+	exhausted, err := freeInstanceQuotaExhausted(context.Background(), client)
 	if err != nil {
 		t.Fatalf("expected no error, got %s", err)
 	}
@@ -440,7 +440,7 @@ func TestFreeInstanceQuotaAvailable(t *testing.T) {
 	cfg.Servers[0].URL = srv.URL
 	client := koyeb.NewAPIClient(cfg)
 
-	exhausted, err := freeInstanceQuotaExhausted(client)
+	exhausted, err := freeInstanceQuotaExhausted(context.Background(), client)
 	if err != nil {
 		t.Fatalf("expected no error, got %s", err)
 	}

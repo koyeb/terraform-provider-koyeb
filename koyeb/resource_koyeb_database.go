@@ -127,7 +127,7 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 	client := meta.(*koyeb.APIClient)
 	resolver := newIDResolver(client)
 
-	_, _, err := client.AppsApi.CreateApp(context.Background()).App(koyeb.CreateApp{
+	_, _, err := client.AppsApi.CreateApp(ctx).App(koyeb.CreateApp{
 		Name: toOpt(d.Get("name").(string)),
 	}).Execute()
 	if err != nil && !isAppNameAlreadyExistsError(err) {
@@ -155,7 +155,7 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 		roleSecret,
 	)
 
-	res, resp, err := client.ServicesApi.CreateService(context.Background()).Service(koyeb.CreateService{
+	res, resp, err := client.ServicesApi.CreateService(ctx).Service(koyeb.CreateService{
 		AppId:      toOpt(appID),
 		Definition: definition,
 	}).Execute()
@@ -184,7 +184,7 @@ func resourceKoyebDatabaseRead(ctx context.Context, d *schema.ResourceData, meta
 		return diag.Errorf("Error retrieving database: %s", err)
 	}
 
-	res, resp, err := client.ServicesApi.GetService(context.Background(), databaseId).Execute()
+	res, resp, err := client.ServicesApi.GetService(ctx, databaseId).Execute()
 	if err != nil {
 		// If the database is somehow already destroyed, mark as
 		// successfully gone
@@ -219,7 +219,7 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 		roleSecret,
 	)
 
-	res, resp, err := client.ServicesApi.UpdateService(context.Background(), d.Id()).Service(koyeb.UpdateService{
+	res, resp, err := client.ServicesApi.UpdateService(ctx, d.Id()).Service(koyeb.UpdateService{
 		Definition: definition,
 	}).Execute()
 	if err != nil {
@@ -238,7 +238,7 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*koyeb.APIClient)
 
-	res, resp, err := client.ServicesApi.DeleteService(context.Background(), d.Id()).Execute()
+	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
 		return diag.Errorf("Error deleting database: %s (%v %v)", err, resp, res)
 	}
@@ -254,8 +254,8 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 // freeInstanceQuotaExhausted reports whether the organization has any
 // free instance left, so the acceptance tests can skip instead of failing
 // on a quota they cannot control.
-func freeInstanceQuotaExhausted(client *koyeb.APIClient) (bool, error) {
-	orgs, _, err := client.ProfileApi.ListUserOrganizations(context.Background()).Execute()
+func freeInstanceQuotaExhausted(ctx context.Context, client *koyeb.APIClient) (bool, error) {
+	orgs, _, err := client.ProfileApi.ListUserOrganizations(ctx).Execute()
 	if err != nil {
 		return false, err
 	}
@@ -264,7 +264,7 @@ func freeInstanceQuotaExhausted(client *koyeb.APIClient) (bool, error) {
 	}
 	orgID := orgs.Organizations[0].GetId()
 
-	usage, _, err := client.QuotasApi.GetOrganizationQuotasUsage(context.Background(), orgID).Execute()
+	usage, _, err := client.QuotasApi.GetOrganizationQuotasUsage(ctx, orgID).Execute()
 	if err != nil {
 		return false, err
 	}
