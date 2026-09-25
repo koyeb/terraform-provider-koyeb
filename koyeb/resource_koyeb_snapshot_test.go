@@ -73,6 +73,13 @@ func testSweepSnapshot(string) error {
 			log.Printf("Destroying snapshot %s", s.GetName())
 
 			if _, _, err := client.SnapshotsApi.DeleteSnapshot(context.Background(), s.GetId()).Execute(); err != nil {
+				// A snapshot still being upload cannot be deleted yet; it
+				// settles within minutes and the next sweep destroys it.
+				// Failing the sweep job here would skip the whole suite.
+				if isStillUploadingError(err) {
+					log.Printf("[WARN] skipping snapshot %s still being uploaded: %s", s.GetName(), err)
+					continue
+				}
 				return err
 			}
 		}
