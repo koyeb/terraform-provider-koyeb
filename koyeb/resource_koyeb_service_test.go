@@ -177,7 +177,7 @@ func testAccCheckKoyebServiceDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(context.Background(), client.ServicesApi.GetService(context.Background(), rs.Primary.ID).Execute, "Service", targetStatus, time.Minute, false)
+		err := waitForStatus(context.Background(), goneWait("Service", targetStatus, time.Minute), serviceStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Service still exists: %s ", err)
 		}

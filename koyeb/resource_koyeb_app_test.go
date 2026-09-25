@@ -107,7 +107,7 @@ func testAccCheckKoyebAppDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(context.Background(), client.AppsApi.GetApp(context.Background(), rs.Primary.ID).Execute, "App", targetStatus, time.Minute, false)
+		err := waitForStatus(context.Background(), goneWait("App", targetStatus, time.Minute), appStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("App still exists: %s", err)
 		}

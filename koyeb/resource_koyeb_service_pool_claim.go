@@ -3,7 +3,6 @@ package koyeb
 import (
 	"context"
 	"fmt"
-	_nethttp "net/http"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -19,62 +18,23 @@ var (
 	claimWaitInterval = 2 * time.Second
 )
 
-// resilientGetService retries transient GetService failures (network
-// errors, 5xx) until the deadline, mirroring the Python wait_claim_ready:
-// cold-claim provisioning blips are in-progress, not fatal. Other errors
-// abort the wait.
-func resilientGetService(ctx context.Context, client *koyeb.APIClient, serviceID string, deadline time.Time, interval time.Duration) func() (*koyeb.GetServiceReply, *_nethttp.Response, error) {
-	return func() (*koyeb.GetServiceReply, *_nethttp.Response, error) {
-		for {
-			reply, resp, err := client.ServicesApi.GetService(ctx, serviceID).Execute()
-			if err == nil || (resp != nil && resp.StatusCode < 500) {
-				return reply, resp, err
-			}
-			if !time.Now().Before(deadline) {
-				return reply, resp, err
-			}
-			select {
-			case <-ctx.Done():
-				return reply, resp, err
-			case <-time.After(interval):
-			}
-		}
-	}
-}
+// waitForClaimFulfilled polls GetClaim until the claim is FULFILLED,
+// surfacing FAILED and RELEASED immediately: neither can still become
+// FULFILLED. Cold claims provision a service on demand, so a pending
+// claim is not yet usable.
 
 // waitForClaimFulfilled polls GetClaim until the claim is FULFILLED,
 // surfacing FAILED and RELEASED immediately: neither can still become
 // FULFILLED. Cold claims provision a service on demand, so a pending
 // claim is not yet usable.
 func waitForClaimFulfilled(ctx context.Context, client *koyeb.APIClient, claimID string, timeout, interval time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		res, resp, err := client.PoolClaimsApi.GetClaim(ctx, claimID).Execute()
-		if err != nil {
-			if resp != nil && resp.StatusCode == _nethttp.StatusNotFound {
-				return fmt.Errorf("claim %s disappeared while waiting for fulfillment", claimID)
-			}
-			return err
-		}
-		claim := res.GetClaim()
-		status := claim.GetStatus()
-		switch status {
-		case koyeb.POOLCLAIMSTATUS_FULFILLED:
-			return nil
-		case koyeb.POOLCLAIMSTATUS_FAILED:
-			return fmt.Errorf("claim %s reached status FAILED", claimID)
-		case koyeb.POOLCLAIMSTATUS_RELEASED:
-			return fmt.Errorf("claim %s reached status RELEASED", claimID)
-		}
-		if !time.Now().Before(deadline) {
-			return fmt.Errorf("claim %s did not reach FULFILLED within %s (last status %s)", claimID, timeout, status)
-		}
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("wait for claim %s cancelled: %w", claimID, ctx.Err())
-		case <-time.After(interval):
-		}
-	}
+	return waitForStatus(ctx, statusWait{
+		name:      fmt.Sprintf("claim %s", claimID),
+		targets:   []string{string(koyeb.POOLCLAIMSTATUS_FULFILLED)},
+		terminals: []string{string(koyeb.POOLCLAIMSTATUS_FAILED), string(koyeb.POOLCLAIMSTATUS_RELEASED)},
+		timeout:   timeout,
+		interval:  interval,
+	}, poolClaimStatusPoller(ctx, client, claimID))
 }
 
 // NOTE: A claim hands out a service detached from the pool, so destroying
@@ -226,9 +186,15 @@ func resourceKoyebServicePoolClaimCreate(
 	// The server stamps FULFILLED when the service is created, not when it
 	// is ready; mirror the Python SDK's wait_claim_ready so the exported
 	// service_id is usable when apply reports success.
-	claimDeadline := time.Now().Add(claimWaitTimeout)
-	getService := resilientGetService(ctx, client, res.GetServiceId(), claimDeadline, claimWaitInterval)
-	if err := waitForResourceStatus(ctx, getService, "Service", serviceReadyStatuses, time.Until(claimDeadline), true, serviceTerminalStatuses...); err != nil {
+	claimServiceWait := statusWait{
+		name:           "Service",
+		targets:        serviceReadyStatuses,
+		terminals:      serviceTerminalStatuses,
+		timeout:        claimWaitTimeout,
+		interval:       claimWaitInterval,
+		retryTransient: true,
+	}
+	if err := waitForStatus(ctx, claimServiceWait, serviceStatusPoller(ctx, client, res.GetServiceId())); err != nil {
 		return diag.Errorf("Error waiting for claimed service to be ready: %s", err)
 	}
 

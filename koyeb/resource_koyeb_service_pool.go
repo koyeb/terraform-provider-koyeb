@@ -19,6 +19,16 @@ var (
 	servicePoolTerminalStatuses = []string{"ERROR", "DELETING"}
 )
 
+func waitForPoolReady(ctx context.Context, client *koyeb.APIClient, poolID string) error {
+	return waitForStatus(ctx, statusWait{
+		name:      "ServicePool",
+		targets:   []string{"READY"},
+		terminals: servicePoolTerminalStatuses,
+		timeout:   servicePoolReadinessTimeout,
+		interval:  waitRetryInterval,
+	}, servicePoolStatusPoller(ctx, client, poolID))
+}
+
 func servicePoolSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		"id": {
@@ -155,7 +165,7 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 
 	// Pools prewarm asynchronously: apply should only report success once
 	// the pool, not just the API call, is READY.
-	if err := waitForResourceStatus(ctx, client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute, "ServicePool", []string{"READY"}, servicePoolReadinessTimeout, true, servicePoolTerminalStatuses...); err != nil {
+	if err := waitForPoolReady(ctx, client, d.Id()); err != nil {
 		return diag.Errorf("Error waiting for service pool to be ready: %s", err)
 	}
 
@@ -214,7 +224,7 @@ func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData,
 	pool := res.GetServicePool()
 	log.Printf("[INFO] Updated service pool name: %s", pool.GetName())
 
-	if err := waitForResourceStatus(ctx, client.ServicePoolsApi.GetServicePool(ctx, d.Id()).Execute, "ServicePool", []string{"READY"}, servicePoolReadinessTimeout, true, servicePoolTerminalStatuses...); err != nil {
+	if err := waitForPoolReady(ctx, client, d.Id()); err != nil {
 		return diag.Errorf("Error waiting for service pool to be ready: %s", err)
 	}
 

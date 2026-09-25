@@ -233,7 +233,7 @@ func testAccCheckKoyebSnapshotDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(context.Background(), client.SnapshotsApi.GetSnapshot(context.Background(), rs.Primary.ID).Execute, "Snapshot", targetStatus, time.Minute, false)
+		err := waitForStatus(context.Background(), goneWait("Snapshot", targetStatus, time.Minute), snapshotStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Snapshot still exists: %s", err)
 		}

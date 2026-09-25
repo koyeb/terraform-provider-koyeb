@@ -119,7 +119,13 @@ var (
 )
 
 func waitForServiceReady(ctx context.Context, client *koyeb.APIClient, serviceID string, timeout time.Duration) error {
-	return waitForResourceStatus(ctx, client.ServicesApi.GetService(ctx, serviceID).Execute, "Service", serviceReadyStatuses, timeout, true, serviceTerminalStatuses...)
+	return waitForStatus(ctx, statusWait{
+		name:      "Service",
+		targets:   serviceReadyStatuses,
+		terminals: serviceTerminalStatuses,
+		timeout:   timeout,
+		interval:  waitRetryInterval,
+	}, serviceStatusPoller(ctx, client, serviceID))
 }
 
 func resourceKoyebService() *schema.Resource {

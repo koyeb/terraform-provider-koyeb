@@ -110,7 +110,7 @@ func testAccCheckKoyebDomainDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(context.Background(), client.DomainsApi.GetDomain(context.Background(), rs.Primary.ID).Execute, "Domain", targetStatus, time.Minute, false)
+		err := waitForStatus(context.Background(), goneWait("Domain", targetStatus, time.Minute), domainStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Domain still exists: %s ", err)
 		}

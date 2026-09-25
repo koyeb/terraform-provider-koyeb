@@ -56,7 +56,7 @@ func testAccCheckKoyebVolumeDestroy(s *terraform.State) error {
 			continue
 		}
 
-		err := waitForResourceStatus(context.Background(), client.PersistentVolumesApi.GetPersistentVolume(context.Background(), rs.Primary.ID).Execute, "Volume", targetStatus, time.Minute, false)
+		err := waitForStatus(context.Background(), goneWait("Volume", targetStatus, time.Minute), volumeStatusPoller(context.Background(), client, rs.Primary.ID))
 		if err != nil {
 			return fmt.Errorf("Volume still exists: %s", err)
 		}

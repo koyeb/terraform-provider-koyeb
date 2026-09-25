@@ -505,8 +505,8 @@ func TestResourceKoyebServicePoolClaimCreateTimesOutWhenPending(t *testing.T) {
 	if len(diags) != 1 || diags[0].Severity != diag.Error {
 		t.Fatalf("expected exactly 1 error diagnostic, got %v", diags)
 	}
-	if !strings.Contains(diags[0].Summary, "did not reach FULFILLED") {
-		t.Errorf("expected a claim wait timeout error, got: %s", diags[0].Summary)
+	if !strings.Contains(diags[0].Summary, "timed out") || !strings.Contains(diags[0].Summary, "claim-uuid") {
+		t.Errorf("expected a claim wait timeout naming the claim, got: %s", diags[0].Summary)
 	}
 	if elapsed := time.Since(start); elapsed > time.Second {
 		t.Errorf("expected the timeout to surface quickly for tests, took %s", elapsed)
