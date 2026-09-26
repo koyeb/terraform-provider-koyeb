@@ -308,6 +308,32 @@ func TestSetServicePoolAttributeMapsServicePoolToState(t *testing.T) {
 	}
 }
 
+func TestServicePoolDefinitionTypeRejectsDatabase(t *testing.T) {
+	definition, ok := servicePoolSchema()["definition"].Elem.(*schema.Resource)
+	if !ok {
+		t.Fatal("expected the pool definition to be a schema resource")
+	}
+	definitionType := definition.Schema["type"]
+
+	// Service pools handle all definition types except DATABASE (parity
+	// with the other clients); the error must name the rule.
+	_, errs := definitionType.ValidateFunc("DATABASE", "type")
+	if len(errs) == 0 {
+		t.Fatal("expected DATABASE to be rejected for pool definitions")
+	}
+	if !strings.Contains(errs[0].Error(), "service pools handle all definition types except DATABASE") {
+		t.Errorf("expected the error to name the rule, got: %s", errs[0].Error())
+	}
+	for _, accepted := range []string{"WEB", "WORKER", "SANDBOX"} {
+		if _, errs := definitionType.ValidateFunc(accepted, "type"); len(errs) != 0 {
+			t.Errorf("expected %s to keep validating for pools, got %v", accepted, errs)
+		}
+	}
+	if _, errs := definitionType.ValidateFunc("BOGUS", "type"); len(errs) == 0 {
+		t.Error("expected unknown types to stay rejected for pools")
+	}
+}
+
 func TestResourceKoyebServicePoolCreateCallsAPIWithBody(t *testing.T) {
 	var gotMethod, gotPath string
 	var gotBody map[string]interface{}

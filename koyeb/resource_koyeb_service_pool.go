@@ -2,12 +2,14 @@ package koyeb
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
 
@@ -52,7 +54,7 @@ func servicePoolSchema() map[string]*schema.Schema {
 			MaxItems:    1,
 			Required:    true,
 			Description: "The deployment definition of the services provisioned by the pool",
-			Elem:        deploymentDefinitionSchema(),
+			Elem:        poolDeploymentDefinitionSchema(),
 		},
 		"organization_id": {
 			Type:        schema.TypeString,
@@ -100,6 +102,26 @@ func servicePoolSchema() map[string]*schema.Schema {
 			Description: "The date and time of when the service pool was created",
 		},
 	}
+}
+
+// Service pools handle all definition types except DATABASE — the same rule
+// the other clients enforce on pool create. koyeb_service and koyeb_database
+// legitimately use DATABASE, so the shared schema stays untouched and the
+// pool embeds this scoped variant.
+func poolDeploymentDefinitionSchema() *schema.Resource {
+	definition := deploymentDefinitionSchema()
+	definitionType := *definition.Schema["type"]
+	definitionType.Description = "The service type, either WEB, WORKER or SANDBOX (default WEB). Service pools handle all definition types except DATABASE"
+	definitionType.ValidateFunc = validatePoolDefinitionType
+	definition.Schema["type"] = &definitionType
+	return definition
+}
+
+func validatePoolDefinitionType(val interface{}, key string) ([]string, []error) {
+	if v, ok := val.(string); ok && v == "DATABASE" {
+		return nil, []error{fmt.Errorf("service pools handle all definition types except DATABASE; provision a database with the koyeb_database resource instead")}
+	}
+	return validation.StringInSlice([]string{"WEB", "WORKER", "SANDBOX"}, false)(val, key)
 }
 
 func resourceKoyebServicePool() *schema.Resource {
