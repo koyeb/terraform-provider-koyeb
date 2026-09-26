@@ -86,7 +86,7 @@ Optional:
 - `routes` (Block Set) (see [below for nested schema](#nestedblock--definition--routes))
 - `skip_cache` (Boolean) If set to true, the service will be deployed without using the cache
 - `strategy` (String) The deployment strategy used when updating the service: DEPLOYMENT_STRATEGY_TYPE_ROLLING, DEPLOYMENT_STRATEGY_TYPE_BLUE_GREEN or DEPLOYMENT_STRATEGY_TYPE_IMMEDIATE
-- `type` (String) The service type, either WEB, WORKER, DATABASE or SANDBOX (default WEB)
+- `type` (String) The service type, either WEB, WORKER or SANDBOX (default WEB). Service pools handle all definition types except DATABASE
 - `volumes` (Block Set) The volumes to attach and mount to the service (see [below for nested schema](#nestedblock--definition--volumes))
 
 <a id="nestedblock--definition--instance_types"></a>
