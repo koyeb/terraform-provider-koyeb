@@ -315,14 +315,14 @@ func TestServicePoolDefinitionTypeRejectsDatabase(t *testing.T) {
 	}
 	definitionType := definition.Schema["type"]
 
-	// Service pools handle all definition types except DATABASE (parity
-	// with the other clients); the error must name the rule.
 	_, errs := definitionType.ValidateFunc("DATABASE", "type")
-	if len(errs) == 0 {
-		t.Fatal("expected DATABASE to be rejected for pool definitions")
+	if len(errs) != 1 {
+		t.Fatalf("expected exactly 1 error for a DATABASE pool definition, got %v", errs)
 	}
-	if !strings.Contains(errs[0].Error(), "service pools handle all definition types except DATABASE") {
-		t.Errorf("expected the error to name the rule, got: %s", errs[0].Error())
+	want := "service pools handle all definition types except DATABASE; " +
+		"provision a database with the koyeb_database resource instead"
+	if got := errs[0].Error(); got != want {
+		t.Errorf("expected the verbatim rule-naming error, got: %s", got)
 	}
 	for _, accepted := range []string{"WEB", "WORKER", "SANDBOX"} {
 		if _, errs := definitionType.ValidateFunc(accepted, "type"); len(errs) != 0 {

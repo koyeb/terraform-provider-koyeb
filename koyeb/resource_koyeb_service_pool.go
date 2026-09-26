@@ -104,10 +104,8 @@ func servicePoolSchema() map[string]*schema.Schema {
 	}
 }
 
-// Service pools handle all definition types except DATABASE — the same rule
-// the other clients enforce on pool create. koyeb_service and koyeb_database
-// legitimately use DATABASE, so the shared schema stays untouched and the
-// pool embeds this scoped variant.
+// Service pools handle all definition types except DATABASE; the shared
+// schema stays untouched because koyeb_service and koyeb_database use DATABASE.
 func poolDeploymentDefinitionSchema() *schema.Resource {
 	definition := deploymentDefinitionSchema()
 	definitionType := *definition.Schema["type"]
