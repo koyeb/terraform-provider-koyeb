@@ -1147,10 +1147,8 @@ func TestDeploymentDefinitionTypeAllowsSandbox(t *testing.T) {
 	}
 }
 
-// Guards the service pool slice that rejects DATABASE on pool definitions:
-// koyeb_service legitimately deploys DATABASE-typed services (as does
-// koyeb_database internally), so the shared definition type must keep
-// accepting DATABASE.
+// koyeb_service legitimately deploys DATABASE-typed services, so the shared
+// definition type must keep accepting it despite the pool-only rejection.
 func TestServiceDefinitionTypeStillAcceptsDatabase(t *testing.T) {
 	definition, ok := serviceSchema()["definition"].Elem.(*schema.Resource)
 	if !ok {
