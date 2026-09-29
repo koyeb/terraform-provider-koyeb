@@ -3,12 +3,12 @@
 page_title: "koyeb_service_pool Resource - terraform-provider-koyeb"
 subcategory: ""
 description: |-
-  Service pool resource in the Koyeb Terraform provider. Service pools keep a set of prewarmed services ready to be claimed instantly. Size and definition changes are applied in place; renaming a pool is not supported by the Koyeb API. Create and update wait for the pool to become READY before completing. Sandbox pools need definition type = "SANDBOX" set explicitly (the provider defaults to WEB, unlike the SDKs) and, on the koyeb/sandbox image, a SANDBOX_SECRET env var supplied via definition env.
+  Service pool resource in the Koyeb Terraform provider. Service pools keep a set of prewarmed services ready to be claimed instantly. Size and definition changes are applied in place; renaming a pool is not supported by the Koyeb API. Create and update wait for the pool to become READY before completing. Sandbox pools need definition type = "SANDBOX" set explicitly (the provider defaults to WEB, unlike the SDKs); the platform mints the executor's SANDBOX_SECRET per member when the definition env does not set one.
 ---
 
 # koyeb_service_pool (Resource)
 
-Service pool resource in the Koyeb Terraform provider. Service pools keep a set of prewarmed services ready to be claimed instantly. Size and definition changes are applied in place; renaming a pool is not supported by the Koyeb API. Create and update wait for the pool to become READY before completing. Sandbox pools need definition type = "SANDBOX" set explicitly (the provider defaults to WEB, unlike the SDKs) and, on the koyeb/sandbox image, a SANDBOX_SECRET env var supplied via definition env.
+Service pool resource in the Koyeb Terraform provider. Service pools keep a set of prewarmed services ready to be claimed instantly. Size and definition changes are applied in place; renaming a pool is not supported by the Koyeb API. Create and update wait for the pool to become READY before completing. Sandbox pools need definition type = "SANDBOX" set explicitly (the provider defaults to WEB, unlike the SDKs); the platform mints the executor's SANDBOX_SECRET per member when the definition env does not set one.
 
 ## Example Usage
 
