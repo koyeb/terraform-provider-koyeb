@@ -10,3 +10,4 @@ BACKWARDS INCOMPATIBILITIES / NOTES:
 FEATURES:
 
 * The shared service definition schema now accepts `type = "SANDBOX"`, matching the service pool support of the Koyeb SDKs and CLI.
+* `definition.git.credential_source` on `koyeb_service` and `koyeb_service_pool` selects the source of the Git repository credentials, mirroring the CLI's `--git-credential-source` flag: unset or `"github"` uses GitHub credentials, and `"connector:UUID"` uses the credentials of a Mistral connector (`koyeb-api-client-go@2ca96ef`).

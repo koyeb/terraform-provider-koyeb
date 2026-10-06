@@ -506,6 +506,7 @@ func TestExpandGitSourceSetsTagAndSha(t *testing.T) {
 			"tag":               "v1.2.3",
 			"sha":               "0123456789abcdef",
 			"workdir":           "",
+			"credential_source": "connector:123e4567-e89b-12d3-a456-426614174000",
 			"no_deploy_on_push": false,
 		},
 	}
@@ -518,14 +519,37 @@ func TestExpandGitSourceSetsTagAndSha(t *testing.T) {
 	if gitSource.GetSha() != "0123456789abcdef" {
 		t.Errorf("expected sha %q, got %q", "0123456789abcdef", gitSource.GetSha())
 	}
+	if gitSource.GetCredentialSource() != "connector:123e4567-e89b-12d3-a456-426614174000" {
+		t.Errorf("expected credential_source %q, got %q", "connector:123e4567-e89b-12d3-a456-426614174000", gitSource.GetCredentialSource())
+	}
+}
+
+func TestExpandGitSourceWithoutCredentialSource(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"repository":        "github.com/koyeb/example",
+			"branch":            "",
+			"tag":               "v1.2.3",
+			"sha":               "0123456789abcdef",
+			"workdir":           "",
+			"no_deploy_on_push": false,
+		},
+	}
+
+	gitSource := expandGitSource(config)
+
+	if gitSource.HasCredentialSource() {
+		t.Errorf("expected credential_source to be unset, got %q", gitSource.GetCredentialSource())
+	}
 }
 
 func TestFlattenGitSetsTagAndSha(t *testing.T) {
 	gitSource := &koyeb.GitSource{
-		Repository: toOpt("github.com/koyeb/example"),
-		Branch:     toOpt("main"),
-		Tag:        toOpt("v1.2.3"),
-		Sha:        toOpt("0123456789abcdef"),
+		Repository:       toOpt("github.com/koyeb/example"),
+		Branch:           toOpt("main"),
+		Tag:              toOpt("v1.2.3"),
+		Sha:              toOpt("0123456789abcdef"),
+		CredentialSource: toOpt("connector:123e4567-e89b-12d3-a456-426614174000"),
 	}
 
 	flattened := flattenGit(gitSource)[0].(map[string]interface{})
@@ -535,6 +559,9 @@ func TestFlattenGitSetsTagAndSha(t *testing.T) {
 	}
 	if flattened["sha"] != "0123456789abcdef" {
 		t.Errorf("expected sha %q, got %v", "0123456789abcdef", flattened["sha"])
+	}
+	if flattened["credential_source"] != "connector:123e4567-e89b-12d3-a456-426614174000" {
+		t.Errorf("expected credential_source %q, got %v", "connector:123e4567-e89b-12d3-a456-426614174000", flattened["credential_source"])
 	}
 }
 

@@ -132,6 +132,12 @@ func gitSchema() *schema.Resource {
 				Optional:    true,
 				Description: "The directory where your source code is located. If not set, the work directory defaults to the root of the repository.",
 			},
+			"credential_source": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Description: "The source of the Git repository credentials. When unset or set to \"github\", the repository is cloned using GitHub credentials. " +
+					"Set to \"connector:UUID\" to clone using the credentials of a Mistral connector.",
+			},
 			"buildpack": {
 				Type:     schema.TypeSet,
 				Optional: true,
@@ -554,6 +560,10 @@ func expandGitSource(config []interface{}) *koyeb.GitSource {
 		NoDeployOnPush: toOpt(rawGitSource["no_deploy_on_push"].(bool)),
 	}
 
+	if rawGitSource["credential_source"] != nil {
+		gitSource.CredentialSource = toOpt(rawGitSource["credential_source"].(string))
+	}
+
 	if rawGitSource["dockerfile"] != nil && rawGitSource["dockerfile"].(*schema.Set).Len() > 0 {
 		gitSource.Docker = expandDockerBuilder(rawGitSource["dockerfile"].(*schema.Set).List())
 	} else if rawGitSource["buildpack"] != nil && rawGitSource["buildpack"].(*schema.Set).Len() > 0 {
@@ -572,6 +582,7 @@ func flattenGit(gitSource *koyeb.GitSource) []interface{} {
 	r["tag"] = gitSource.GetTag()
 	r["sha"] = gitSource.GetSha()
 	r["workdir"] = gitSource.GetWorkdir()
+	r["credential_source"] = gitSource.GetCredentialSource()
 	r["no_deploy_on_push"] = gitSource.GetNoDeployOnPush()
 	if buildpack, ok := gitSource.GetBuildpackOk(); ok {
 		r["buildpack"] = flattenBuildpackBuilder(buildpack)
