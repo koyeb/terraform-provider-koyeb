@@ -7,7 +7,7 @@ toolchain go1.23.3
 require (
 	github.com/hashicorp/terraform-plugin-docs v0.13.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.1
-	github.com/koyeb/koyeb-api-client-go v0.0.0-20260922125051-6b3a41d64230
+	github.com/koyeb/koyeb-api-client-go v0.0.0-20260925132615-2ca96ef5512d
 )
 
 require (

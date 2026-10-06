@@ -328,6 +328,7 @@ Optional:
 
 - `branch` (String) The GitHub branch to deploy. Exactly one of branch, tag or sha must be set.
 - `buildpack` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git--buildpack))
+- `credential_source` (String) The source of the Git repository credentials. When unset or set to "github", the repository is cloned using GitHub credentials. Set to "connector:UUID" to clone using the credentials of a Mistral connector.
 - `dockerfile` (Block Set, Max: 1) (see [below for nested schema](#nestedblock--definition--git--dockerfile))
 - `no_deploy_on_push` (Boolean) If set to true, no Koyeb deployments will be triggered when changes are pushed to the GitHub repository branch
 - `sha` (String) The git commit SHA to deploy. Exactly one of branch, tag or sha must be set.

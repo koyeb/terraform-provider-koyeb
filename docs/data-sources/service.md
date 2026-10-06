@@ -184,6 +184,7 @@ Read-Only:
 
 - `branch` (String)
 - `buildpack` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--git--buildpack))
+- `credential_source` (String)
 - `dockerfile` (Set of Object) (see [below for nested schema](#nestedobjatt--definition--git--dockerfile))
 - `no_deploy_on_push` (Boolean)
 - `repository` (String)
