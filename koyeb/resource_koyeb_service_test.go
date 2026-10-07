@@ -1174,6 +1174,18 @@ func TestDeploymentDefinitionTypeAllowsSandbox(t *testing.T) {
 	}
 }
 
+// koyeb_service legitimately deploys DATABASE-typed services, so the shared
+// definition type must keep accepting it despite the pool-only rejection.
+func TestServiceDefinitionTypeStillAcceptsDatabase(t *testing.T) {
+	definition, ok := serviceSchema()["definition"].Elem.(*schema.Resource)
+	if !ok {
+		t.Fatal("expected the service definition to be a schema resource")
+	}
+	if _, errs := definition.Schema["type"].ValidateFunc("DATABASE", "type"); len(errs) != 0 {
+		t.Errorf("expected DATABASE to keep validating for service definitions, got %v", errs)
+	}
+}
+
 func TestProxyPortSchemaOnlyAllowsTCPProtocol(t *testing.T) {
 	protocol := proxyPortSchema().Schema["protocol"]
 
