@@ -1465,8 +1465,8 @@ func testServiceUpdateState() *terraform.InstanceState {
 // An update must be verified against the REPLACEMENT deployment, not the
 // predecessor: the old deployment keeps the service-level status HEALTHY
 // through a rolling update, so only the pinned deployment's transition to
-// healthy proves the new version is live (mirrors the Python SDK fix
-// koyeb-python-sdk@10210e3).
+// healthy proves the new version is live (mirrors the Python SDK's
+// replacement-deployment wait).
 func TestResourceKoyebServiceUpdateWaitsForReplacementDeployment(t *testing.T) {
 	shortenWaits(t)
 	srv, _, deploymentGets := deploymentWaitTestServer(t, true, "HEALTHY")

@@ -176,7 +176,7 @@ func waitForDeploymentReady(ctx context.Context, client *koyeb.APIClient, deploy
 // replacementDeploymentID pins the deployment the update rolled out, so
 // the readiness wait verifies the replacement instead of the predecessor:
 // during a rolling update the service-level status stays HEALTHY on the old
-// deployment (mirrors the Python SDK fix koyeb-python-sdk@10210e3). The id
+// deployment (mirrors the Python SDK's replacement-deployment wait). The id
 // comes from the update reply, falling back to the live service; empty
 // means neither exposed one and the caller waits on the service level.
 func replacementDeploymentID(ctx context.Context, client *koyeb.APIClient, service koyeb.Service) string {
@@ -270,7 +270,10 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 			return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
 		}
 		name := d.Get("definition").([]interface{})[0].(map[string]interface{})["name"].(string)
-		id, ok := findServiceByName(ctx, client, appId, name)
+		id, ok, findErr := findServiceByName(ctx, client, appId, name)
+		if findErr != nil {
+			return diag.Errorf("Error listing services to adopt the existing one: %s", findErr)
+		}
 		if !ok {
 			return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
 		}

@@ -159,3 +159,14 @@ func TestProviderConfigureHonorsAPIURLEnv(t *testing.T) {
 		t.Fatal("expected the client to call KOYEB_API_URL, got no request")
 	}
 }
+
+func TestValidateAPIURL(t *testing.T) {
+	if _, errs := validateAPIURL("https://app.koyeb.com", "api_url"); len(errs) != 0 {
+		t.Fatalf("valid api_url rejected: %v", errs)
+	}
+	for _, bad := range []string{"app.koyeb.com", "https://", "://nope"} {
+		if _, errs := validateAPIURL(bad, "api_url"); len(errs) == 0 {
+			t.Errorf("api_url %q without scheme+host must be rejected", bad)
+		}
+	}
+}

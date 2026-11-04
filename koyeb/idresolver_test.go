@@ -126,3 +126,66 @@ func TestStaticIDResolverServesRegisteredRefs(t *testing.T) {
 		t.Error("expected an unregistered kind/ref to fail")
 	}
 }
+
+func TestRefMatchesDatabaseToleratesShortIDs(t *testing.T) {
+	id, appID, name := "abc", "xy", "my-db"
+	service := koyeb.ServiceListItem{Id: &id, AppId: &appID, Name: &name}
+	if !refMatchesDatabase("my-app/my-db", service, "my-app") {
+		t.Error("expected the app/name key to match")
+	}
+	// Short or malformed API ids must not panic the provider.
+	if refMatchesDatabase("my-app/xyz", service, "my-app") {
+		t.Error("an unknown key must not match")
+	}
+}
+
+func TestFindByNamePropagatesListErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	client := resolverTestClient(t, srv)
+	if _, _, err := findServiceByName(context.Background(), client, "app-id", "svc"); err == nil {
+		t.Error("expected the service listing error to propagate, got nil")
+	}
+	if _, _, err := findPoolByName(context.Background(), client, "pool"); err == nil {
+		t.Error("expected the pool listing error to propagate, got nil")
+	}
+}
+
+// The resolver must walk listings page by page until the reported count is
+// covered and keep the first match when several items match.
+func TestAPIResolverServicePaginatesAndKeepsFirstMatch(t *testing.T) {
+	var requests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/apps":
+			_, _ = w.Write([]byte(`{"apps":[{"id":"app-1","name":"my-app"}],"count":1}`))
+		case "/v1/services":
+			requests++
+			offset := r.URL.Query().Get("offset")
+			switch offset {
+			case "0":
+				_, _ = w.Write([]byte(`{"services":[{"id":"svc-page0","name":"other","app_id":"app-1"}],"count":200}`))
+			default:
+				_, _ = w.Write([]byte(`{"services":[{"id":"svc-page1","name":"dup","app_id":"app-1"},{"id":"svc-page1-b","name":"dup","app_id":"app-1"}],"count":200}`))
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	resolver := newIDResolver(resolverTestClient(t, srv))
+	id, err := resolver.Service(context.Background(), "my-app/dup")
+	if err != nil {
+		t.Fatalf("expected the slug on page 2 to resolve, got %v", err)
+	}
+	if id != "svc-page1" {
+		t.Errorf("expected the first match on the page to win, got %q", id)
+	}
+	if requests != 2 {
+		t.Errorf("expected exactly 2 listing pages, got %d requests", requests)
+	}
+}

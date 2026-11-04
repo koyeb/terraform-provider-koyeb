@@ -161,7 +161,10 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 		if !isAlreadyExistsError(err) {
 			return diag.Errorf("Error creating service pool: %s (%v %v)", err, resp, res)
 		}
-		id, ok := findPoolByName(ctx, client, d.Get("name").(string))
+		id, ok, findErr := findPoolByName(ctx, client, d.Get("name").(string))
+		if findErr != nil {
+			return diag.Errorf("Error listing service pools to adopt the existing one: %s", findErr)
+		}
 		if !ok {
 			return diag.Errorf("Error creating service pool: %s (%v %v)", err, resp, res)
 		}

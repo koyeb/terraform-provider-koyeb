@@ -285,36 +285,36 @@ func refMatches(ref, id, name string) bool {
 
 // findServiceByName lists the app's services and returns the id of the one
 // with the given name, for adopting an orphan left by a crashed apply.
-func findServiceByName(ctx context.Context, client *koyeb.APIClient, appID, name string) (string, bool) {
+func findServiceByName(ctx context.Context, client *koyeb.APIClient, appID, name string) (string, bool, error) {
 	req := client.ServicesApi.ListServices(ctx).Name(name)
 	if appID != "" {
 		req = req.AppId(appID)
 	}
-	res, _, err := req.Execute()
+	res, resp, err := req.Execute()
 	if err != nil {
-		return "", false
+		return "", false, listingError("services", err, resp)
 	}
 	for _, s := range res.GetServices() {
 		if s.GetName() == name {
-			return s.GetId(), true
+			return s.GetId(), true, nil
 		}
 	}
-	return "", false
+	return "", false, nil
 }
 
 // findPoolByName lists pools and returns the id of the one with the given
 // name, for adopting an orphan left by a crashed apply.
-func findPoolByName(ctx context.Context, client *koyeb.APIClient, name string) (string, bool) {
-	res, _, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
+func findPoolByName(ctx context.Context, client *koyeb.APIClient, name string) (string, bool, error) {
+	res, resp, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
 	if err != nil {
-		return "", false
+		return "", false, listingError("service pools", err, resp)
 	}
 	for _, p := range res.GetServicePools() {
 		if p.GetName() == name {
-			return p.GetId(), true
+			return p.GetId(), true, nil
 		}
 	}
-	return "", false
+	return "", false, nil
 }
 
 // refMatchesDatabase mirrors the CLI's nine acceptable database keys:
@@ -325,12 +325,20 @@ func refMatchesDatabase(ref string, service koyeb.ServiceListItem, appName strin
 	if isShortID(ref, id) {
 		return true
 	}
-	sid := strings.ReplaceAll(id, "-", "")[:8]
+	dashless := strings.ReplaceAll(id, "-", "")
+	sid := dashless
+	if len(sid) > 8 {
+		sid = sid[:8]
+	}
 	appID := service.GetAppId()
+	appShort := appID
+	if len(appShort) > 8 {
+		appShort = appShort[:8]
+	}
 	for _, key := range []string{
-		appName + "/" + id, appID + "/" + id, appID[:8] + "/" + id,
-		appName + "/" + sid, appID + "/" + sid, appID[:8] + "/" + sid,
-		appName + "/" + service.GetName(), appID + "/" + service.GetName(), appID[:8] + "/" + service.GetName(),
+		appName + "/" + id, appID + "/" + id, appShort + "/" + id,
+		appName + "/" + sid, appID + "/" + sid, appShort + "/" + sid,
+		appName + "/" + service.GetName(), appID + "/" + service.GetName(), appShort + "/" + service.GetName(),
 	} {
 		if ref == key {
 			return true

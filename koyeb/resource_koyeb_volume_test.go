@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,5 +147,60 @@ func TestDeleteVolumeWhenDetachedRetriesWhileAttached(t *testing.T) {
 	}
 	if deletes != 3 {
 		t.Errorf("expected 3 delete attempts, got %d", deletes)
+	}
+}
+
+func TestDeleteVolumeWhenDetachedReturnsNonTransientErrors(t *testing.T) {
+	const volumeID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
+	tests := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"server error", http.StatusInternalServerError, `{"message":"boom"}`},
+		{"unrelated bad request", http.StatusBadRequest, `{"message":"some other precondition"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deletes := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				deletes++
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer srv.Close()
+			cfg := koyeb.NewConfiguration()
+			cfg.Servers[0].URL = srv.URL
+			client := koyeb.NewAPIClient(cfg)
+			if err := deleteVolumeWhenDetached(context.Background(), client, volumeID, time.Millisecond); err == nil {
+				t.Fatal("expected the non-transient error to be returned, got nil")
+			}
+			if deletes != 1 {
+				t.Fatalf("expected exactly 1 delete attempt, got %d", deletes)
+			}
+		})
+	}
+}
+
+func TestDeleteVolumeWhenDetachedExhaustsAttempts(t *testing.T) {
+	const volumeID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
+	deletes := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deletes++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"status":400,"code":"failed_precondition","message":"Cannot delete a persistent volume still attached"}`))
+	}))
+	defer srv.Close()
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+	err := deleteVolumeWhenDetached(context.Background(), client, volumeID, time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "still attached") {
+		t.Fatalf("expected the exhaustion error, got %v", err)
+	}
+	if deletes != 30 {
+		t.Fatalf("expected 30 delete attempts, got %d", deletes)
 	}
 }

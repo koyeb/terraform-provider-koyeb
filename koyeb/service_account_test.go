@@ -61,3 +61,15 @@ func TestSetServiceAttributeReadsServiceAccountID(t *testing.T) {
 		t.Fatalf("service_account_id = %q, want sa-123", got)
 	}
 }
+
+// The service data source reads through the resource's setServiceAttribute,
+// so it must declare service_account_id too or the value is silently dropped.
+func TestDataSourceServiceSchemaExposesServiceAccountID(t *testing.T) {
+	attr, ok := dataSourceKoyebService().Schema["service_account_id"]
+	if !ok {
+		t.Fatal("service_account_id missing from the koyeb_service data source schema")
+	}
+	if attr.Type != schema.TypeString || !attr.Computed {
+		t.Fatalf("data source service_account_id must be a Computed string, got type=%v computed=%v", attr.Type, attr.Computed)
+	}
+}

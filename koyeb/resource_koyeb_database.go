@@ -165,7 +165,10 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 		if !isAlreadyExistsError(err) {
 			return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
 		}
-		id, ok := findServiceByName(ctx, client, appID, d.Get("name").(string))
+		id, ok, findErr := findServiceByName(ctx, client, appID, d.Get("name").(string))
+		if findErr != nil {
+			return diag.Errorf("Error listing services to adopt the existing database: %s", findErr)
+		}
 		if !ok {
 			return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
 		}

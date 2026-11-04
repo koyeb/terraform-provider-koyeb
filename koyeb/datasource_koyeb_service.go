@@ -38,6 +38,11 @@ func dataSourceKoyebService() *schema.Resource {
 				Computed:    true,
 				Description: "The app id the service is assigned",
 			},
+			"service_account_id": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The service account ID the service runs as",
+			},
 			"organization_id": {
 				Type:        schema.TypeString,
 				Computed:    true,
