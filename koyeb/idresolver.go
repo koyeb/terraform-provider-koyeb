@@ -62,7 +62,7 @@ func (r *apiIDResolver) App(ctx context.Context, ref string) (string, error) {
 				found = app.GetId()
 			}
 		}
-		return len(res.GetApps()), offset+resolverPageSize < res.GetCount(), found != "", nil
+		return len(res.GetApps()), res.GetHasNext(), found != "", nil
 	})
 	return found, err
 }
@@ -93,7 +93,7 @@ func (r *apiIDResolver) Service(ctx context.Context, ref string) (string, error)
 				found = service.GetId()
 			}
 		}
-		return len(res.GetServices()), offset+resolverPageSize < res.GetCount(), found != "", nil
+		return len(res.GetServices()), res.GetHasNext(), found != "", nil
 	})
 	return found, err
 }
@@ -124,7 +124,7 @@ func (r *apiIDResolver) Database(ctx context.Context, ref string) (string, error
 				found = service.GetId()
 			}
 		}
-		return len(res.GetServices()), offset+resolverPageSize < res.GetCount(), found != "", nil
+		return len(res.GetServices()), res.GetHasNext(), found != "", nil
 	})
 	return found, err
 }
@@ -150,7 +150,8 @@ func (r *apiIDResolver) Secret(ctx context.Context, ref string) (string, error) 
 				found = secret.GetId()
 			}
 		}
-		return len(res.GetSecrets()), offset+resolverPageSize < res.GetCount(), found != "", nil
+		got := len(res.GetSecrets())
+		return got, offset+int64(got) < res.GetCount(), found != "", nil
 	})
 	return found, err
 }
@@ -232,7 +233,8 @@ func (r *apiIDResolver) Domain(ctx context.Context, ref string) (string, error) 
 				found = domain.GetId()
 			}
 		}
-		return len(res.GetDomains()), offset+resolverPageSize < res.GetCount(), found != "", nil
+		got := len(res.GetDomains())
+		return got, offset+int64(got) < res.GetCount(), found != "", nil
 	})
 	return found, err
 }
@@ -253,8 +255,8 @@ func (r *apiIDResolver) appNames(ctx context.Context) (map[string]string, error)
 		for _, app := range res.GetApps() {
 			names[app.GetId()] = app.GetName()
 		}
-		offset += resolverPageSize
-		if offset >= res.GetCount() {
+		offset += int64(len(res.GetApps()))
+		if !res.GetHasNext() {
 			return names, nil
 		}
 	}

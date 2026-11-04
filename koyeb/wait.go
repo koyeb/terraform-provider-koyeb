@@ -98,7 +98,7 @@ func pollReply[T any](res T, resp *_nethttp.Response, err error, status func(T) 
 		if isGone(resp) {
 			return "", errGone
 		}
-		if resp == nil || resp.StatusCode >= 500 {
+		if resp == nil || resp.StatusCode >= 500 || resp.StatusCode == _nethttp.StatusTooManyRequests {
 			return "", fmt.Errorf("%w: %w", errTransient, err)
 		}
 		return "", err

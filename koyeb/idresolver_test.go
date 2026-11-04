@@ -167,7 +167,7 @@ func TestAPIResolverServicePaginatesAndKeepsFirstMatch(t *testing.T) {
 			offset := r.URL.Query().Get("offset")
 			switch offset {
 			case "0":
-				_, _ = w.Write([]byte(`{"services":[{"id":"svc-page0","name":"other","app_id":"app-1"}],"count":200}`))
+				_, _ = w.Write([]byte(`{"services":[{"id":"svc-page0","name":"other","app_id":"app-1"}],"count":200,"has_next":true}`))
 			default:
 				_, _ = w.Write([]byte(`{"services":[{"id":"svc-page1","name":"dup","app_id":"app-1"},{"id":"svc-page1-b","name":"dup","app_id":"app-1"}],"count":200}`))
 			}
@@ -220,6 +220,41 @@ func TestAPIResolverVolumeFollowsHasNextOnShortPage(t *testing.T) {
 	}
 	if id != "vol-page1" {
 		t.Errorf("expected vol-page1, got %q", id)
+	}
+	if requests != 2 {
+		t.Errorf("expected 2 listing requests, got %d", requests)
+	}
+}
+
+// A server-capped short page must not end the walk early for the
+// count-based kinds either: has_next decides, the offset advances by the
+// items actually received.
+func TestAPIResolverAppFollowsHasNextOnShortPage(t *testing.T) {
+	var requests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/v1/apps" {
+			http.NotFound(w, r)
+			return
+		}
+		requests++
+		if r.URL.Query().Get("offset") == "0" {
+			_, _ = w.Write([]byte(`{"apps":[{"id":"app-0","name":"other"}],"count":250,"has_next":true}`))
+			return
+		}
+		if r.URL.Query().Get("offset") != "1" {
+			t.Errorf("expected the next page at offset 1, got %q", r.URL.Query().Get("offset"))
+		}
+		_, _ = w.Write([]byte(`{"apps":[{"id":"app-1","name":"my-app"}],"count":250,"has_next":false}`))
+	}))
+	defer srv.Close()
+
+	id, err := newIDResolver(resolverTestClient(t, srv)).App(context.Background(), "my-app")
+	if err != nil {
+		t.Fatalf("expected the app on page 2 to resolve, got %v", err)
+	}
+	if id != "app-1" {
+		t.Errorf("expected app-1, got %q", id)
 	}
 	if requests != 2 {
 		t.Errorf("expected 2 listing requests, got %d", requests)
