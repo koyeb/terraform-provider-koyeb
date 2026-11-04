@@ -560,8 +560,8 @@ func expandGitSource(config []interface{}) *koyeb.GitSource {
 		NoDeployOnPush: toOpt(rawGitSource["no_deploy_on_push"].(bool)),
 	}
 
-	if rawGitSource["credential_source"] != nil {
-		gitSource.CredentialSource = toOpt(rawGitSource["credential_source"].(string))
+	if cs, ok := rawGitSource["credential_source"].(string); ok && cs != "" {
+		gitSource.CredentialSource = toOpt(cs)
 	}
 
 	if rawGitSource["dockerfile"] != nil && rawGitSource["dockerfile"].(*schema.Set).Len() > 0 {

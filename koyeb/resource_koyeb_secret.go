@@ -362,7 +362,7 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 	if err != nil {
 		// If the Secret is somehow already destroyed, mark as
 		// successfully gone
-		if resp.StatusCode == 404 {
+		if resp != nil && resp.StatusCode == 404 {
 			d.SetId("")
 			return nil
 		}
@@ -372,7 +372,7 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	body := make(map[string]interface{})
 	_, resp, err = client.SecretsApi.RevealSecret(ctx, secretId).Body(body).Execute()
-	if resp.StatusCode != 200 && err != nil {
+	if err != nil && (resp == nil || resp.StatusCode != 200) {
 		return diag.Errorf("Error retrieving secret value: %s", err)
 
 	}

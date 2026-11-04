@@ -1558,3 +1558,25 @@ func TestResourceKoyebServiceUpdateSurfacesDeploymentMessages(t *testing.T) {
 		t.Errorf("expected the diagnostic to surface the deployment messages, got: %s", diags[0].Summary)
 	}
 }
+
+// SDKv2 always materializes optional string keys as "", so the unset path
+// arrives with the key present and empty, not absent.
+func TestExpandGitSourceEmptyCredentialSourceStaysUnset(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"repository":        "github.com/koyeb/example",
+			"branch":            "main",
+			"tag":               "",
+			"sha":               "",
+			"workdir":           "",
+			"credential_source": "",
+			"no_deploy_on_push": false,
+		},
+	}
+
+	gitSource := expandGitSource(config)
+
+	if gitSource.HasCredentialSource() {
+		t.Errorf("expected empty credential_source to stay unset, got %q", gitSource.GetCredentialSource())
+	}
+}
