@@ -176,7 +176,9 @@ func (r *apiIDResolver) Volume(ctx context.Context, ref string) (string, error) 
 				found = volume.GetId()
 			}
 		}
-		return len(res.GetVolumes()) == resolverPageSize, found != "", nil
+		// Volume listings carry has_next, not a count: a short page can
+		// still have a next one when the server caps the page size.
+		return res.GetHasNext(), found != "", nil
 	})
 	return found, err
 }
@@ -202,7 +204,9 @@ func (r *apiIDResolver) Snapshot(ctx context.Context, ref string) (string, error
 				found = snapshot.GetId()
 			}
 		}
-		return len(res.GetSnapshots()) == resolverPageSize, found != "", nil
+		// Snapshot listings carry has_next, not a count: a short page can
+		// still have a next one when the server caps the page size.
+		return res.GetHasNext(), found != "", nil
 	})
 	return found, err
 }

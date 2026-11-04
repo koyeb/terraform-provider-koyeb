@@ -189,3 +189,35 @@ func TestAPIResolverServicePaginatesAndKeepsFirstMatch(t *testing.T) {
 		t.Errorf("expected exactly 2 listing pages, got %d requests", requests)
 	}
 }
+
+// Volume/snapshot listings carry has_next instead of a count: a short page
+// with has_next=true must not end the walk early.
+func TestAPIResolverVolumeFollowsHasNextOnShortPage(t *testing.T) {
+	var requests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/v1/volumes" {
+			http.NotFound(w, r)
+			return
+		}
+		requests++
+		if r.URL.Query().Get("offset") == "0" {
+			// Short page (1 < limit 100) but has_next=true.
+			_, _ = w.Write([]byte(`{"volumes":[{"id":"vol-page0","name":"other"}],"has_next":true}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"volumes":[{"id":"vol-page1","name":"my-vol"}],"has_next":false}`))
+	}))
+	defer srv.Close()
+
+	id, err := newIDResolver(resolverTestClient(t, srv)).Volume(context.Background(), "my-vol")
+	if err != nil {
+		t.Fatalf("expected the volume on page 2 to resolve, got %v", err)
+	}
+	if id != "vol-page1" {
+		t.Errorf("expected vol-page1, got %q", id)
+	}
+	if requests != 2 {
+		t.Errorf("expected 2 listing requests, got %d", requests)
+	}
+}
