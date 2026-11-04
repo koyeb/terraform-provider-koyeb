@@ -2,6 +2,8 @@ package koyeb
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/koyeb/koyeb-api-client-go/api/v1/koyeb"
 )
 
@@ -282,4 +286,178 @@ func firstPollThen(counter *int32, first, next string) string {
 		return next
 	}
 	return first
+}
+
+// A read whose API call fails at the transport layer returns err with a nil
+// resp; the 404 check must not dereference it.
+func TestResourceReadsHandleTransportErrorWithNilResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = url
+	client := koyeb.NewAPIClient(cfg)
+
+	id := "123e4567-e89b-42d3-a456-426614174000" // UUIDv4: the resolver passes it through
+	reads := map[string]struct {
+		resource *schema.Resource
+		read     func(context.Context, *schema.ResourceData, interface{}) diag.Diagnostics
+	}{
+		"app":      {resourceKoyebApp(), resourceKoyebAppRead},
+		"database": {resourceKoyebDatabase(), resourceKoyebDatabaseRead},
+		"domain":   {resourceKoyebDomain(), resourceKoyebDomainRead},
+		"secret":   {resourceKoyebSecret(), resourceKoyebSecretRead},
+		"service":  {resourceKoyebService(), resourceKoyebServiceRead},
+		"snapshot": {resourceKoyebSnapshot(), resourceKoyebSnapshotRead},
+		"volume":   {resourceKoyebVolume(), resourceKoyebVolumeRead},
+	}
+	for name, tc := range reads {
+		t.Run(name, func(t *testing.T) {
+			d := schema.TestResourceDataRaw(t, tc.resource.Schema, map[string]interface{}{})
+			d.SetId(id)
+			diags := tc.read(context.Background(), d, client)
+			if !diags.HasError() {
+				t.Errorf("expected an error diagnostic, got none")
+			}
+		})
+	}
+}
+
+func TestWaitForStatusDoesNotRetryTransientErrorsWhenDisabled(t *testing.T) {
+	old := waitRetryInterval
+	waitRetryInterval = time.Millisecond
+	defer func() { waitRetryInterval = old }()
+
+	poll := func() (string, error) { return "", fmt.Errorf("%w: connection reset", errTransient) }
+	start := time.Now()
+	err := waitForStatus(context.Background(), statusWait{
+		name: "svc", targets: []string{"HEALTHY"}, terminals: []string{"ERROR"},
+		timeout: 5 * time.Second, interval: time.Millisecond, retryTransient: false,
+	}, poll)
+	if err == nil || !errors.Is(err, errTransient) {
+		t.Fatalf("expected the transient error to surface, got %v", err)
+	}
+	if time.Since(start) > time.Second {
+		t.Fatalf("wait retried a transient error although retryTransient is false")
+	}
+}
+
+func TestWaitForStatusRetriesTransientErrorsWhenEnabled(t *testing.T) {
+	old := waitRetryInterval
+	waitRetryInterval = time.Millisecond
+	defer func() { waitRetryInterval = old }()
+
+	polls := 0
+	poll := func() (string, error) {
+		polls++
+		return "", fmt.Errorf("%w: connection reset", errTransient)
+	}
+	err := waitForStatus(context.Background(), statusWait{
+		name: "svc", targets: []string{"HEALTHY"}, terminals: []string{"ERROR"},
+		timeout: 50 * time.Millisecond, interval: time.Millisecond, retryTransient: true,
+	}, poll)
+	if err == nil || !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("expected a timeout after retrying, got %v", err)
+	}
+	if polls < 2 {
+		t.Fatalf("expected the transient error to be retried, got %d poll(s)", polls)
+	}
+}
+
+func TestWaitForStatusAbortsNonTransientErrorsEvenWhenRetryingEnabled(t *testing.T) {
+	old := waitRetryInterval
+	waitRetryInterval = time.Millisecond
+	defer func() { waitRetryInterval = old }()
+
+	polls := 0
+	poll := func() (string, error) {
+		polls++
+		return "", errors.New("boom")
+	}
+	err := waitForStatus(context.Background(), statusWait{
+		name: "svc", targets: []string{"HEALTHY"}, terminals: []string{"ERROR"},
+		timeout: 5 * time.Second, interval: time.Millisecond, retryTransient: true,
+	}, poll)
+	if err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("expected the non-transient error to abort the wait, got %v", err)
+	}
+	if polls != 1 {
+		t.Fatalf("expected exactly one poll, got %d", polls)
+	}
+}
+
+func TestPoolClaimStatusPollerPassesThroughNonGoneErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"boom"}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	_, err := poolClaimStatusPoller(context.Background(), client, "claim-uuid")()
+	if err == nil || !errors.Is(err, errTransient) {
+		t.Fatalf("expected the transient error, got %v", err)
+	}
+	if strings.Contains(err.Error(), "disappeared") {
+		t.Fatalf("a non-gone error must not be wrapped as disappeared: %v", err)
+	}
+}
+
+// A destroy retried after a crash must succeed when the resource is already
+// gone (404), not error out.
+func TestResourceDeletesTreat404AsGone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"not found"}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	deletes := map[string]struct {
+		resource *schema.Resource
+		attrs    map[string]interface{}
+		del      func(context.Context, *schema.ResourceData, interface{}) diag.Diagnostics
+	}{
+		"app":      {resourceKoyebApp(), nil, resourceKoyebAppDelete},
+		"database": {resourceKoyebDatabase(), nil, resourceKoyebDatabaseDelete},
+		"domain":   {resourceKoyebDomain(), nil, resourceKoyebDomainDelete},
+		"secret":   {resourceKoyebSecret(), nil, resourceKoyebSecretDelete},
+		"service":  {resourceKoyebService(), nil, resourceKoyebServiceDelete},
+		"pool":     {resourceKoyebServicePool(), nil, resourceKoyebServicePoolDelete},
+		"claim":    {resourceKoyebServicePoolClaim(), map[string]interface{}{"service_id": "svc-uuid"}, resourceKoyebServicePoolClaimDelete},
+		"snapshot": {resourceKoyebSnapshot(), nil, resourceKoyebSnapshotDelete},
+		"volume":   {resourceKoyebVolume(), nil, resourceKoyebVolumeDelete},
+	}
+	for name, tc := range deletes {
+		t.Run(name, func(t *testing.T) {
+			d := schema.TestResourceDataRaw(t, tc.resource.Schema, tc.attrs)
+			d.SetId("123e4567-e89b-42d3-a456-426614174000")
+			diags := tc.del(context.Background(), d, client)
+			if diags.HasError() {
+				t.Fatalf("expected 404 to be treated as gone, got %v", diags)
+			}
+			if d.Id() != "" {
+				t.Errorf("expected the id to be cleared, got %q", d.Id())
+			}
+		})
+	}
+}
+
+func TestIsGone(t *testing.T) {
+	if isGone(nil) {
+		t.Error("a nil response (transport error) is not gone")
+	}
+	if isGone(&http.Response{StatusCode: http.StatusInternalServerError}) {
+		t.Error("a 500 is not gone")
+	}
+	if !isGone(&http.Response{StatusCode: http.StatusNotFound}) {
+		t.Error("a 404 is gone")
+	}
 }

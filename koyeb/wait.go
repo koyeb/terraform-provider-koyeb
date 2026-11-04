@@ -18,6 +18,13 @@ var waitRetryInterval = 5 * time.Second
 // errGone marks a 404: the resource no longer exists.
 var errGone = errors.New("resource is gone")
 
+// isGone reports whether the API replied 404, the one decision every CRUD
+// path shares: a retried destroy after a crash finds the resource already
+// gone. A nil resp (transport error) is not gone.
+func isGone(resp *_nethttp.Response) bool {
+	return resp != nil && resp.StatusCode == _nethttp.StatusNotFound
+}
+
 // errTransient marks a network failure or 5xx worth retrying until the
 // deadline when the wait allows it; the underlying error is wrapped.
 var errTransient = errors.New("transient API failure")
@@ -88,10 +95,10 @@ func goneWait(name string, targets []string, timeout time.Duration) statusWait {
 // errTransient, everything else aborts the wait.
 func pollReply[T any](res T, resp *_nethttp.Response, err error, status func(T) string) (string, error) {
 	if err != nil {
-		if resp != nil && resp.StatusCode == _nethttp.StatusNotFound {
+		if isGone(resp) {
 			return "", errGone
 		}
-		if resp == nil || resp.StatusCode >= 500 {
+		if resp == nil || resp.StatusCode >= 500 || resp.StatusCode == _nethttp.StatusTooManyRequests {
 			return "", fmt.Errorf("%w: %w", errTransient, err)
 		}
 		return "", err

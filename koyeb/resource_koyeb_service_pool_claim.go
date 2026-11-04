@@ -22,11 +22,6 @@ var (
 // surfacing FAILED and RELEASED immediately: neither can still become
 // FULFILLED. Cold claims provision a service on demand, so a pending
 // claim is not yet usable.
-
-// waitForClaimFulfilled polls GetClaim until the claim is FULFILLED,
-// surfacing FAILED and RELEASED immediately: neither can still become
-// FULFILLED. Cold claims provision a service on demand, so a pending
-// claim is not yet usable.
 func waitForClaimFulfilled(ctx context.Context, client *koyeb.APIClient, claimID string, timeout, interval time.Duration) error {
 	return waitForStatus(ctx, statusWait{
 		name:      fmt.Sprintf("claim %s", claimID),
@@ -139,19 +134,11 @@ func resourceKoyebServicePoolClaimCreate(
 
 	name := d.Get("pool").(string)
 
-	pools, resp, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
+	poolID, found, err := findPoolByName(ctx, client, name)
 	if err != nil {
-		return diag.Errorf("Error retrieving service pool: %s (%v %v)", err, resp, pools)
+		return diag.Errorf("Error retrieving service pool: %s", err)
 	}
-
-	var poolID string
-	for _, pool := range pools.GetServicePools() {
-		if pool.GetName() == name {
-			poolID = pool.GetId()
-			break
-		}
-	}
-	if poolID == "" {
+	if !found {
 		return diag.Errorf("No service pool found with name %s", name)
 	}
 
@@ -208,7 +195,7 @@ func resourceKoyebServicePoolClaimRead(
 
 	res, resp, err := client.PoolClaimsApi.GetClaim(ctx, d.Id()).Execute()
 	if err != nil {
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -262,6 +249,11 @@ func resourceKoyebServicePoolClaimDelete(
 
 	res, resp, err := client.ServicesApi.DeleteService(ctx, serviceID).Execute()
 	if err != nil {
+		// A retried destroy after a crash finds the service already gone.
+		if isGone(resp) {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting claimed service: %s (%v %v)", err, resp, res)
 	}
 

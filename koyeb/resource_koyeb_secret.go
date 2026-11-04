@@ -362,7 +362,7 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 	if err != nil {
 		// If the Secret is somehow already destroyed, mark as
 		// successfully gone
-		if resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -372,9 +372,14 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	body := make(map[string]interface{})
 	_, resp, err = client.SecretsApi.RevealSecret(ctx, secretId).Body(body).Execute()
+	// The pinned SDK models RevealSecretReply.value as a map, but the API
+	// returns a string, so Execute reports an unmarshal error on a 200; the
+	// raw body read below handles that case. Only fail on real errors.
+	if resp == nil {
+		return diag.Errorf("Error retrieving secret value: no response (%v)", err)
+	}
 	if resp.StatusCode != 200 && err != nil {
 		return diag.Errorf("Error retrieving secret value: %s", err)
-
 	}
 
 	buffer, err := io.ReadAll(resp.Body)
@@ -389,7 +394,7 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	secretValue, ok := output["value"]
 	if !ok {
-		return diag.Errorf("Error while reading the secret value: %s", err)
+		return diag.Errorf("Error while reading the secret value: the reveal reply carries no value field")
 	}
 
 	setSecretAttribute(d, *res.Secret, secretValue)
@@ -454,6 +459,11 @@ func resourceKoyebSecretDelete(ctx context.Context, d *schema.ResourceData, meta
 	res, resp, err := client.SecretsApi.DeleteSecret(ctx, d.Id()).Execute()
 
 	if err != nil {
+		// A retried destroy after a crash finds the secret already gone.
+		if isGone(resp) {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting secret: %s (%v %v)", err, resp, res)
 	}
 

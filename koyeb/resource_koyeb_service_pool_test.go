@@ -737,3 +737,48 @@ func TestResourceKoyebServicePoolCreateFailsFastWhenPoolErrors(t *testing.T) {
 		t.Errorf("expected the wait to stop at the first ERROR poll, got %d polls", n)
 	}
 }
+
+// A crashed apply leaves the pool created but unrecorded; a retry that hits
+// the name conflict must adopt the orphan instead of failing.
+func TestResourceKoyebServicePoolCreateAdoptsExistingPoolOnConflict(t *testing.T) {
+	shortenWaits(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/service_pools":
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"invalid request","fields":[{"field":"name","description":"already exists"}]}`))
+		case "GET /v1/service_pools":
+			_, _ = w.Write([]byte(`{"service_pools":[{"id":"pool-existing","name":"my-pool"}],"count":1}`))
+		case "GET /v1/service_pools/pool-existing":
+			_, _ = w.Write([]byte(`{"service_pool":{"id":"pool-existing","name":"my-pool","size":1,` +
+				`"ready_count":1,"status":"READY","organization_id":"org-id","workspace_id":"ws-id",` +
+				`"generation":"1","messages":[],"created_at":"2026-09-18T13:00:00Z","updated_at":"2026-09-18T13:00:00Z"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, servicePoolSchema(), map[string]interface{}{
+		"name": "my-pool",
+		"size": 1,
+		"definition": []interface{}{
+			map[string]interface{}{
+				"name":   "pool",
+				"docker": []interface{}{map[string]interface{}{"image": "koyeb/demo"}},
+			},
+		},
+	})
+
+	diags := resourceKoyebServicePoolCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+	if diags.HasError() {
+		t.Fatalf("expected the conflict to be adopted, got %v", diags)
+	}
+	if d.Id() != "pool-existing" {
+		t.Errorf("expected the existing pool to be adopted, got id %q", d.Id())
+	}
+}

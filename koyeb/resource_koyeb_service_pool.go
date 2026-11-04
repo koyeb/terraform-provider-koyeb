@@ -156,12 +156,25 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 		Definition: definition,
 	}).Execute()
 	if err != nil {
-		return diag.Errorf("Error creating service pool: %s (%v %v)", err, resp, res)
+		// A crashed apply leaves the pool created but unrecorded; adopt
+		// the orphan on retry instead of failing forever.
+		if !isAlreadyExistsError(err) {
+			return diag.Errorf("Error creating service pool: %s (%v %v)", err, resp, res)
+		}
+		id, ok, findErr := findPoolByName(ctx, client, d.Get("name").(string))
+		if findErr != nil {
+			return diag.Errorf("Error listing service pools to adopt the existing one: %s", findErr)
+		}
+		if !ok {
+			return diag.Errorf("Error creating service pool: %s (%v %v)", err, resp, res)
+		}
+		d.SetId(id)
+		log.Printf("[INFO] Adopted existing service pool name: %s", d.Get("name").(string))
+	} else {
+		pool := res.GetServicePool()
+		d.SetId(pool.GetId())
+		log.Printf("[INFO] Created service pool name: %s", pool.GetName())
 	}
-
-	pool := res.GetServicePool()
-	d.SetId(pool.GetId())
-	log.Printf("[INFO] Created service pool name: %s", pool.GetName())
 
 	// Pools prewarm asynchronously: apply should only report success once
 	// the pool, not just the API call, is READY.
@@ -179,7 +192,7 @@ func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		// If the service pool is somehow already destroyed, mark as
 		// successfully gone
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -195,15 +208,14 @@ func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, m
 // NOTE: The update endpoint only accepts size and definition: the API cannot
 // rename a pool, so fail explicitly on a name change instead of silently
 // ignoring it. The shared definition block keeps ForceNew: true on its
-// nested `name` (deploymentDefinitionSchema in resource_koyeb_service.go),
-// so renaming the definition plans a replacement; that apply fails at the
-// destroy step with the explicit delete error while deletion stays
-// unsupported upstream.
+// nested `name` (deploymentDefinitionSchema in koyeb/definition.go),
+// so renaming the definition plans a replacement, which Terraform applies
+// as delete-then-create.
 func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	if d.HasChange("name") {
 		return diag.Errorf(
 			"Renaming service pools is not supported by the Koyeb API, pool: %s. "+
-				"Revert the name change in your configuration or recreate the pool once deletion support lands.",
+				"Revert the name change in your configuration or recreate the pool manually.",
 			d.Id(),
 		)
 	}
@@ -239,6 +251,11 @@ func resourceKoyebServicePoolDelete(ctx context.Context, d *schema.ResourceData,
 
 	res, resp, err := client.ServicePoolsApi.DeleteServicePool(ctx, d.Id()).Execute()
 	if err != nil {
+		// A retried destroy after a crash finds the pool already gone.
+		if isGone(resp) {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting service pool: %s (%v %v)", err, resp, res)
 	}
 

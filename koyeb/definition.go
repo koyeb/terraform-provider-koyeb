@@ -284,6 +284,3 @@ func flattenDeploymentDefinition(deployment *koyeb.DeploymentDefinition) []inter
 
 	return result
 }
-
-// Readiness budget for created and updated services; a variable so tests
-// can shorten it.

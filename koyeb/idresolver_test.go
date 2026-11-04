@@ -126,3 +126,137 @@ func TestStaticIDResolverServesRegisteredRefs(t *testing.T) {
 		t.Error("expected an unregistered kind/ref to fail")
 	}
 }
+
+func TestRefMatchesDatabaseToleratesShortIDs(t *testing.T) {
+	id, appID, name := "abc", "xy", "my-db"
+	service := koyeb.ServiceListItem{Id: &id, AppId: &appID, Name: &name}
+	if !refMatchesDatabase("my-app/my-db", service, "my-app") {
+		t.Error("expected the app/name key to match")
+	}
+	// Short or malformed API ids must not panic the provider.
+	if refMatchesDatabase("my-app/xyz", service, "my-app") {
+		t.Error("an unknown key must not match")
+	}
+}
+
+func TestFindByNamePropagatesListErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	client := resolverTestClient(t, srv)
+	if _, _, err := findServiceByName(context.Background(), client, "app-id", "svc"); err == nil {
+		t.Error("expected the service listing error to propagate, got nil")
+	}
+	if _, _, err := findPoolByName(context.Background(), client, "pool"); err == nil {
+		t.Error("expected the pool listing error to propagate, got nil")
+	}
+}
+
+// The resolver must walk listings page by page until the reported count is
+// covered and keep the first match when several items match.
+func TestAPIResolverServicePaginatesAndKeepsFirstMatch(t *testing.T) {
+	var requests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/apps":
+			_, _ = w.Write([]byte(`{"apps":[{"id":"app-1","name":"my-app"}],"count":1}`))
+		case "/v1/services":
+			requests++
+			offset := r.URL.Query().Get("offset")
+			switch offset {
+			case "0":
+				_, _ = w.Write([]byte(`{"services":[{"id":"svc-page0","name":"other","app_id":"app-1"}],"count":200,"has_next":true}`))
+			default:
+				_, _ = w.Write([]byte(`{"services":[{"id":"svc-page1","name":"dup","app_id":"app-1"},{"id":"svc-page1-b","name":"dup","app_id":"app-1"}],"count":200}`))
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	resolver := newIDResolver(resolverTestClient(t, srv))
+	id, err := resolver.Service(context.Background(), "my-app/dup")
+	if err != nil {
+		t.Fatalf("expected the slug on page 2 to resolve, got %v", err)
+	}
+	if id != "svc-page1" {
+		t.Errorf("expected the first match on the page to win, got %q", id)
+	}
+	if requests != 2 {
+		t.Errorf("expected exactly 2 listing pages, got %d requests", requests)
+	}
+}
+
+// Volume/snapshot listings carry has_next instead of a count: a short page
+// with has_next=true must not end the walk early.
+func TestAPIResolverVolumeFollowsHasNextOnShortPage(t *testing.T) {
+	var requests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/v1/volumes" {
+			http.NotFound(w, r)
+			return
+		}
+		requests++
+		if r.URL.Query().Get("offset") == "0" {
+			// Short page (1 < limit 100) but has_next=true; the walk must
+			// resume right after the received item, not skip to offset 100.
+			_, _ = w.Write([]byte(`{"volumes":[{"id":"vol-page0","name":"other"}],"has_next":true}`))
+			return
+		}
+		if r.URL.Query().Get("offset") != "1" {
+			t.Errorf("expected the next page at offset 1 (items received), got %q", r.URL.Query().Get("offset"))
+		}
+		_, _ = w.Write([]byte(`{"volumes":[{"id":"vol-page1","name":"my-vol"}],"has_next":false}`))
+	}))
+	defer srv.Close()
+
+	id, err := newIDResolver(resolverTestClient(t, srv)).Volume(context.Background(), "my-vol")
+	if err != nil {
+		t.Fatalf("expected the volume on page 2 to resolve, got %v", err)
+	}
+	if id != "vol-page1" {
+		t.Errorf("expected vol-page1, got %q", id)
+	}
+	if requests != 2 {
+		t.Errorf("expected 2 listing requests, got %d", requests)
+	}
+}
+
+// A server-capped short page must not end the walk early for the
+// count-based kinds either: has_next decides, the offset advances by the
+// items actually received.
+func TestAPIResolverAppFollowsHasNextOnShortPage(t *testing.T) {
+	var requests int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/v1/apps" {
+			http.NotFound(w, r)
+			return
+		}
+		requests++
+		if r.URL.Query().Get("offset") == "0" {
+			_, _ = w.Write([]byte(`{"apps":[{"id":"app-0","name":"other"}],"count":250,"has_next":true}`))
+			return
+		}
+		if r.URL.Query().Get("offset") != "1" {
+			t.Errorf("expected the next page at offset 1, got %q", r.URL.Query().Get("offset"))
+		}
+		_, _ = w.Write([]byte(`{"apps":[{"id":"app-1","name":"my-app"}],"count":250,"has_next":false}`))
+	}))
+	defer srv.Close()
+
+	id, err := newIDResolver(resolverTestClient(t, srv)).App(context.Background(), "my-app")
+	if err != nil {
+		t.Fatalf("expected the app on page 2 to resolve, got %v", err)
+	}
+	if id != "app-1" {
+		t.Errorf("expected app-1, got %q", id)
+	}
+	if requests != 2 {
+		t.Errorf("expected 2 listing requests, got %d", requests)
+	}
+}

@@ -160,11 +160,44 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 		Definition: definition,
 	}).Execute()
 	if err != nil {
-		return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
+		// A crashed apply leaves the backing service created but
+		// unrecorded; adopt the orphan on retry instead of failing.
+		if !isAlreadyExistsError(err) {
+			return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
+		}
+		id, ok, findErr := findServiceByName(ctx, client, appID, d.Get("name").(string))
+		if findErr != nil {
+			return diag.Errorf("Error listing services to adopt the existing database: %s", findErr)
+		}
+		if !ok {
+			return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
+		}
+		d.SetId(id)
+		// The orphan references the crashed attempt's role secret; recover it
+		// from the live deployment so a retried create ends in the same state.
+		svc, _, getErr := client.ServicesApi.GetService(ctx, id).Execute()
+		if getErr != nil {
+			return diag.Errorf("Error reading the adopted database service: %s", getErr)
+		}
+		live := svc.GetService()
+		dep, _, depErr := client.DeploymentsApi.GetDeployment(ctx, live.GetLatestDeploymentId()).Execute()
+		if depErr != nil {
+			return diag.Errorf("Error reading the adopted database deployment: %s", depErr)
+		}
+		deployment := dep.GetDeployment()
+		definition := deployment.GetDefinition()
+		database := definition.GetDatabase()
+		neon := database.GetNeonPostgres()
+		roles := neon.GetRoles()
+		if len(roles) == 0 || roles[0].GetSecret() == "" {
+			return diag.Errorf("role_secret is unknown for the adopted database %s: recreate the resource or repair its state", id)
+		}
+		d.Set("role_secret", roles[0].GetSecret())
+		log.Printf("[INFO] Adopted existing database name: %s", d.Get("name").(string))
+	} else {
+		d.SetId(res.Service.GetId())
+		log.Printf("[INFO] Created database name: %s", res.Service.GetName())
 	}
-
-	d.SetId(*res.Service.Id)
-	log.Printf("[INFO] Created database name: %s", *res.Service.Name)
 
 	// A database is a service: apply should not report success before it
 	// is usable, matching koyeb_service.
@@ -188,7 +221,7 @@ func resourceKoyebDatabaseRead(ctx context.Context, d *schema.ResourceData, meta
 	if err != nil {
 		// If the database is somehow already destroyed, mark as
 		// successfully gone
-		if resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -226,9 +259,13 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 		return diag.Errorf("Error updating database: %s (%v %v)", err, resp, res)
 	}
 
-	log.Printf("[INFO] Updated database name: %s", *res.Service.Name)
+	log.Printf("[INFO] Updated database name: %s", res.Service.GetName())
 
-	if deploymentID := replacementDeploymentID(ctx, client, res.GetService()); deploymentID != "" {
+	deploymentID, err := replacementDeploymentID(ctx, client, res.GetService())
+	if err != nil {
+		return diag.Errorf("Error pinning the replacement deployment: %s", err)
+	}
+	if deploymentID != "" {
 		if err := waitForDeploymentReady(ctx, client, deploymentID, serviceReadinessTimeout); err != nil {
 			return diag.Errorf("Error waiting for the replacement deployment to be ready: %s", err)
 		}
@@ -244,6 +281,11 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 
 	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
+		// A retried destroy after a crash finds the service already gone.
+		if isGone(resp) {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting database: %s (%v %v)", err, resp, res)
 	}
 
@@ -251,10 +293,6 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 	return nil
 }
 
-// newRoleSecretName returns the name of the managed secret that will
-// hold the database role password. Secret names must start with a letter,
-// so the UUID is prefixed: bare UUIDs start with a hex digit ~62% of the
-// time and the API rejects them.
 // freeInstanceQuotaExhausted reports whether the organization has any
 // free instance left, so the acceptance tests can skip instead of failing
 // on a quota they cannot control.
@@ -283,6 +321,10 @@ func freeInstanceQuotaExhausted(ctx context.Context, client *koyeb.APIClient) (b
 	return false, nil
 }
 
+// newRoleSecretName returns the name of the managed secret that will
+// hold the database role password. Secret names must start with a letter,
+// so the UUID is prefixed: bare UUIDs start with a hex digit ~62% of the
+// time and the API rejects them.
 func newRoleSecretName() (string, error) {
 	id, err := uuid.GenerateUUID()
 	if err != nil {
@@ -315,6 +357,31 @@ func buildDatabaseDefinition(name string, pgVersion int, region, instanceType, d
 			},
 		},
 	}
+}
+
+// isAlreadyExistsError reports whether the API rejected a create because a
+// resource with the same name exists. The conflict is a 400 field error on
+// the name field (reported as definition.name for services, name otherwise),
+// so an unrelated field error must not trigger orphan adoption.
+func isAlreadyExistsError(err error) bool {
+	var openAPIError *koyeb.GenericOpenAPIError
+	if !errors.As(err, &openAPIError) {
+		return false
+	}
+
+	errorWithFields, ok := openAPIError.Model().(koyeb.ErrorWithFields)
+	if !ok {
+		return false
+	}
+
+	for _, f := range errorWithFields.GetFields() {
+		field := f.GetField()
+		if (field == "name" || field == "definition.name") &&
+			strings.Contains(strings.ToLower(f.GetDescription()), "already exists") {
+			return true
+		}
+	}
+	return false
 }
 
 // isAppNameAlreadyExistsError reports whether the CreateApp call failed

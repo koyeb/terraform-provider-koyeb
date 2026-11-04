@@ -553,15 +553,24 @@ func expandGitSource(config []interface{}) *koyeb.GitSource {
 
 	gitSource := &koyeb.GitSource{
 		Repository:     toOpt(rawGitSource["repository"].(string)),
-		Branch:         toOpt(rawGitSource["branch"].(string)),
-		Tag:            toOpt(rawGitSource["tag"].(string)),
-		Sha:            toOpt(rawGitSource["sha"].(string)),
-		Workdir:        toOpt(rawGitSource["workdir"].(string)),
 		NoDeployOnPush: toOpt(rawGitSource["no_deploy_on_push"].(bool)),
 	}
 
-	if rawGitSource["credential_source"] != nil {
-		gitSource.CredentialSource = toOpt(rawGitSource["credential_source"].(string))
+	// Optional strings arrive as "" when unset; send only real values.
+	if v, ok := rawGitSource["branch"].(string); ok && v != "" {
+		gitSource.Branch = toOpt(v)
+	}
+	if v, ok := rawGitSource["tag"].(string); ok && v != "" {
+		gitSource.Tag = toOpt(v)
+	}
+	if v, ok := rawGitSource["sha"].(string); ok && v != "" {
+		gitSource.Sha = toOpt(v)
+	}
+	if v, ok := rawGitSource["workdir"].(string); ok && v != "" {
+		gitSource.Workdir = toOpt(v)
+	}
+	if cs, ok := rawGitSource["credential_source"].(string); ok && cs != "" {
+		gitSource.CredentialSource = toOpt(cs)
 	}
 
 	if rawGitSource["dockerfile"] != nil && rawGitSource["dockerfile"].(*schema.Set).Len() > 0 {

@@ -109,11 +109,22 @@ func resourceKoyebAppCreate(ctx context.Context, d *schema.ResourceData, meta in
 	res, resp, err := client.AppsApi.CreateApp(ctx).App(createApp).Execute()
 
 	if err != nil {
-		return diag.Errorf("Error creating app: %s (%v %v)", err, resp, res)
+		// A crashed apply leaves the app created but unrecorded; adopt the
+		// orphan on retry instead of failing forever.
+		if !isAppNameAlreadyExistsError(err) {
+			return diag.Errorf("Error creating app: %s (%v %v)", err, resp, res)
+		}
+		id, resolveErr := newIDResolver(client).App(ctx, d.Get("name").(string))
+		if resolveErr != nil {
+			return diag.Errorf("Error resolving the existing app: %s", resolveErr)
+		}
+		d.SetId(id)
+		log.Printf("[INFO] Adopted existing app name: %s", d.Get("name").(string))
+		return resourceKoyebAppRead(ctx, d, meta)
 	}
 
-	d.SetId(*res.App.Id)
-	log.Printf("[INFO] Created app name: %s", *res.App.Name)
+	d.SetId(res.App.GetId())
+	log.Printf("[INFO] Created app name: %s", res.App.GetName())
 
 	return resourceKoyebAppRead(ctx, d, meta)
 }
@@ -160,7 +171,7 @@ func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta inte
 	if err != nil {
 		// If the app is somehow already destroyed, mark as
 		// successfully gone
-		if resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -179,6 +190,11 @@ func resourceKoyebAppDelete(ctx context.Context, d *schema.ResourceData, meta in
 	res, resp, err := client.AppsApi.DeleteApp(ctx, d.Id()).Execute()
 
 	if err != nil {
+		// A retried destroy after a crash finds the app already gone.
+		if isGone(resp) {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting app: %s (%v %v)", err, resp, res)
 	}
 

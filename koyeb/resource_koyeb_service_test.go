@@ -1465,8 +1465,8 @@ func testServiceUpdateState() *terraform.InstanceState {
 // An update must be verified against the REPLACEMENT deployment, not the
 // predecessor: the old deployment keeps the service-level status HEALTHY
 // through a rolling update, so only the pinned deployment's transition to
-// healthy proves the new version is live (mirrors the Python SDK fix
-// koyeb-python-sdk@10210e3).
+// healthy proves the new version is live (mirrors the Python SDK's
+// replacement-deployment wait).
 func TestResourceKoyebServiceUpdateWaitsForReplacementDeployment(t *testing.T) {
 	shortenWaits(t)
 	srv, _, deploymentGets := deploymentWaitTestServer(t, true, "HEALTHY")
@@ -1556,5 +1556,141 @@ func TestResourceKoyebServiceUpdateSurfacesDeploymentMessages(t *testing.T) {
 	}
 	if !strings.Contains(diags[0].Summary, "build failed: could not read source") {
 		t.Errorf("expected the diagnostic to surface the deployment messages, got: %s", diags[0].Summary)
+	}
+}
+
+// SDKv2 always materializes optional string keys as "", so the unset path
+// arrives with the key present and empty, not absent.
+func TestExpandGitSourceEmptyCredentialSourceStaysUnset(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"repository":        "github.com/koyeb/example",
+			"branch":            "main",
+			"tag":               "",
+			"sha":               "",
+			"workdir":           "",
+			"credential_source": "",
+			"no_deploy_on_push": false,
+		},
+	}
+
+	gitSource := expandGitSource(config)
+
+	if gitSource.HasCredentialSource() {
+		t.Errorf("expected empty credential_source to stay unset, got %q", gitSource.GetCredentialSource())
+	}
+}
+
+// SDKv2 materializes optional strings as "": only non-empty values may be
+// sent, so an unset branch/tag/sha/workdir must not go out as "".
+func TestExpandGitSourceOmitsEmptyOptionalStrings(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"repository":        "github.com/koyeb/example",
+			"branch":            "main",
+			"tag":               "",
+			"sha":               "",
+			"workdir":           "",
+			"credential_source": "",
+			"no_deploy_on_push": false,
+		},
+	}
+
+	gitSource := expandGitSource(config)
+
+	if gitSource.GetBranch() != "main" {
+		t.Errorf("expected branch %q, got %q", "main", gitSource.GetBranch())
+	}
+	if gitSource.HasTag() || gitSource.HasSha() || gitSource.HasWorkdir() || gitSource.HasCredentialSource() {
+		t.Errorf("expected empty tag/sha/workdir/credential_source to stay unset, got tag=%q sha=%q workdir=%q cs=%q",
+			gitSource.GetTag(), gitSource.GetSha(), gitSource.GetWorkdir(), gitSource.GetCredentialSource())
+	}
+}
+
+// A crashed apply leaves the service created but unrecorded; a retry that
+// hits the name conflict must adopt the orphan instead of failing.
+func TestResourceKoyebServiceCreateAdoptsExistingServiceOnConflict(t *testing.T) {
+	shortenWaits(t)
+	const existingID = "11111111-2222-4333-8444-555555555555"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/services":
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"invalid request","fields":[{"field":"definition.name","description":"already exists"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/apps":
+			_, _ = w.Write([]byte(`{"apps":[{"id":"app-uuid","name":"my-app"}],"count":1}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/services":
+			_, _ = w.Write([]byte(`{"services":[{"id":"` + existingID + `","name":"my-service","app_id":"app-uuid","status":"HEALTHY"}],"count":1}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/services/"+existingID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + existingID + `","name":"my-service","app_id":"app-uuid","status":"HEALTHY","organization_id":"org-id","version":"1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, resourceKoyebService().Schema, map[string]interface{}{
+		"app_name": "my-app",
+		"definition": []interface{}{
+			map[string]interface{}{
+				"name":   "my-service",
+				"docker": []interface{}{map[string]interface{}{"image": "koyeb/demo"}},
+			},
+		},
+	})
+
+	diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+	if diags.HasError() {
+		t.Fatalf("expected the conflict to be adopted, got %v", diags)
+	}
+	if d.Id() != existingID {
+		t.Errorf("expected the existing service to be adopted, got id %q", d.Id())
+	}
+}
+
+// A field error on an unrelated field must not be mistaken for a name
+// conflict and trigger orphan adoption.
+func TestIsAlreadyExistsErrorIgnoresUnrelatedFieldErrors(t *testing.T) {
+	body := `{"message":"invalid request","fields":[{"field":"definition.image","description":"already exists in another registry"}]}`
+	err := koyeb.GenericOpenAPIError{}
+	_ = err
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+	_, _, apiErr := client.ServicesApi.CreateService(context.Background()).Service(koyeb.CreateService{
+		Name: toOpt("x"),
+	}).Execute()
+	if apiErr == nil {
+		t.Fatal("expected the mock server to return an error")
+	}
+	if isAlreadyExistsError(apiErr) {
+		t.Error("an unrelated field error must not classify as a name conflict")
+	}
+}
+
+// The fallback that pins the replacement deployment must surface errors
+// instead of silently waiting on the service level.
+func TestReplacementDeploymentIDPropagatesFetchError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	service := koyeb.Service{Id: toOpt("svc-id")}
+	if _, err := replacementDeploymentID(context.Background(), client, service); err == nil {
+		t.Fatal("expected the GetService error to propagate, got nil")
 	}
 }

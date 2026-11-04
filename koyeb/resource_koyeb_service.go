@@ -51,6 +51,13 @@ func serviceSchema() map[string]*schema.Schema {
 			Computed:    true,
 			Description: "The organization ID owning the service",
 		},
+		"service_account_id": {
+			Type:        schema.TypeString,
+			Optional:    true,
+			Computed:    true,
+			ForceNew:    true,
+			Description: "The service account ID to associate with the service. Set at creation time only; immutable afterwards.",
+		},
 		"active_deployment": {
 			Type:        schema.TypeString,
 			Computed:    true,
@@ -169,19 +176,22 @@ func waitForDeploymentReady(ctx context.Context, client *koyeb.APIClient, deploy
 // replacementDeploymentID pins the deployment the update rolled out, so
 // the readiness wait verifies the replacement instead of the predecessor:
 // during a rolling update the service-level status stays HEALTHY on the old
-// deployment (mirrors the Python SDK fix koyeb-python-sdk@10210e3). The id
+// deployment (mirrors the Python SDK's replacement-deployment wait). The id
 // comes from the update reply, falling back to the live service; empty
 // means neither exposed one and the caller waits on the service level.
-func replacementDeploymentID(ctx context.Context, client *koyeb.APIClient, service koyeb.Service) string {
+func replacementDeploymentID(ctx context.Context, client *koyeb.APIClient, service koyeb.Service) (string, error) {
 	if id := service.GetLatestDeploymentId(); id != "" {
-		return id
+		return id, nil
 	}
 	res, resp, err := client.ServicesApi.GetService(ctx, service.GetId()).Execute()
-	if err != nil || resp == nil || resp.StatusCode != 200 {
-		return ""
+	if err != nil {
+		return "", fmt.Errorf("error fetching the live service to pin the replacement deployment: %w", err)
+	}
+	if resp == nil || resp.StatusCode != 200 {
+		return "", fmt.Errorf("unexpected reply fetching the live service to pin the replacement deployment")
 	}
 	live := res.GetService()
-	return live.GetLatestDeploymentId()
+	return live.GetLatestDeploymentId(), nil
 }
 
 func resourceKoyebService() *schema.Resource {
@@ -206,13 +216,12 @@ func resourceKoyebService() *schema.Resource {
 func setServiceAttribute(
 	d *schema.ResourceData,
 	service *koyeb.Service,
-	// latestDeployment *koyeb.Deployment,
 ) error {
 	d.SetId(service.GetId())
 	d.Set("name", service.GetName())
 	d.Set("app_id", service.GetAppId())
-	// d.Set("definition", flattenDeploymentDefinition(toOpt(latestDeployment.GetDefinition())))
 	d.Set("organization_id", service.GetOrganizationId())
+	d.Set("service_account_id", service.GetServiceAccountId())
 	d.Set("active_deployment", service.GetActiveDeploymentId())
 	d.Set("latest_deployment", service.GetLatestDeploymentId())
 	d.Set("version", service.GetVersion())
@@ -225,6 +234,19 @@ func setServiceAttribute(
 	d.Set("created_at", service.GetCreatedAt().UTC().String())
 
 	return nil
+}
+
+// createServicePayload builds the CreateService body. The service account is
+// creation-only on the API, so it rides here and nowhere else.
+func createServicePayload(appId string, d *schema.ResourceData) koyeb.CreateService {
+	payload := koyeb.CreateService{
+		AppId:      &appId,
+		Definition: expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{})),
+	}
+	if sa := d.Get("service_account_id").(string); sa != "" {
+		payload.ServiceAccountId = &sa
+	}
+	return payload
 }
 
 func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
@@ -241,18 +263,27 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 		appId = id
 	}
 
-	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
-
-	res, resp, err := client.ServicesApi.CreateService(ctx).Service(koyeb.CreateService{
-		AppId:      &appId,
-		Definition: definition,
-	}).Execute()
+	res, resp, err := client.ServicesApi.CreateService(ctx).Service(createServicePayload(appId, d)).Execute()
 	if err != nil {
-		return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
+		// A crashed apply leaves the service created but unrecorded; adopt
+		// the orphan on retry instead of failing forever.
+		if !isAlreadyExistsError(err) {
+			return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
+		}
+		name := d.Get("definition").([]interface{})[0].(map[string]interface{})["name"].(string)
+		id, ok, findErr := findServiceByName(ctx, client, appId, name)
+		if findErr != nil {
+			return diag.Errorf("Error listing services to adopt the existing one: %s", findErr)
+		}
+		if !ok {
+			return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
+		}
+		d.SetId(id)
+		log.Printf("[INFO] Adopted existing service name: %s", name)
+	} else {
+		d.SetId(res.Service.GetId())
+		log.Printf("[INFO] Created service name: %s", res.Service.GetName())
 	}
-
-	d.SetId(*res.Service.Id)
-	log.Printf("[INFO] Created service name: %s", *res.Service.Name)
 
 	// Apply should not report success while the service is still starting;
 	// HEALTHY/DEGRADED is the usable set shared with the Python SDK.
@@ -281,7 +312,7 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 	if err != nil {
 		// If the service is somehow already destroyed, mark as
 		// successfully gone
-		if resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -310,9 +341,13 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 		return diag.Errorf("Error updating service: %s (%v %v)", err, resp, res)
 	}
 
-	log.Printf("[INFO] Updated service name: %s", *res.Service.Name)
+	log.Printf("[INFO] Updated service name: %s", res.Service.GetName())
 
-	if deploymentID := replacementDeploymentID(ctx, client, res.GetService()); deploymentID != "" {
+	deploymentID, err := replacementDeploymentID(ctx, client, res.GetService())
+	if err != nil {
+		return diag.Errorf("Error pinning the replacement deployment: %s", err)
+	}
+	if deploymentID != "" {
 		if err := waitForDeploymentReady(ctx, client, deploymentID, serviceReadinessTimeout); err != nil {
 			return diag.Errorf("Error waiting for the replacement deployment to be ready: %s", err)
 		}
@@ -329,6 +364,11 @@ func resourceKoyebServiceDelete(ctx context.Context, d *schema.ResourceData, met
 
 	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
+		// A retried destroy after a crash finds the service already gone.
+		if isGone(resp) {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting service: %s (%v %v)", err, resp, res)
 	}
 

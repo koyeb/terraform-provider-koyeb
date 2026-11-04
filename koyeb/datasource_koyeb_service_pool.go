@@ -31,17 +31,13 @@ func dataSourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData,
 
 	name := d.Get("name").(string)
 
-	res, resp, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
+	id, found, err := findPoolByName(ctx, client, name)
 	if err != nil {
-		return diag.Errorf("Error retrieving service pool: %s (%v %v)", err, resp, res)
+		return diag.Errorf("Error retrieving service pool: %s", err)
 	}
-
-	for _, pool := range res.GetServicePools() {
-		if pool.GetName() == name {
-			d.SetId(pool.GetId())
-			return resourceKoyebServicePoolRead(ctx, d, meta)
-		}
+	if !found {
+		return diag.Errorf("No service pool found with name %s", name)
 	}
-
-	return diag.Errorf("No service pool found with name %s", name)
+	d.SetId(id)
+	return resourceKoyebServicePoolRead(ctx, d, meta)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,5 +147,49 @@ func TestDeleteVolumeWhenDetachedRetriesWhileAttached(t *testing.T) {
 	}
 	if deletes != 3 {
 		t.Errorf("expected 3 delete attempts, got %d", deletes)
+	}
+}
+
+func TestDeleteVolumeWhenDetachedReturnsNonTransientErrors(t *testing.T) {
+	const volumeID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
+	// A 5xx is not a precondition: fail immediately, no retry.
+	deletes := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deletes++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"boom"}`))
+	}))
+	defer srv.Close()
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+	if err := deleteVolumeWhenDetached(context.Background(), client, volumeID, time.Millisecond); err == nil {
+		t.Fatal("expected the 5xx error to be returned, got nil")
+	}
+	if deletes != 1 {
+		t.Fatalf("expected exactly 1 delete attempt on a 5xx, got %d", deletes)
+	}
+}
+
+func TestDeleteVolumeWhenDetachedExhaustsAttempts(t *testing.T) {
+	const volumeID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
+	// The API signals "not deletable yet" as a bare 400 with an arbitrary or
+	// empty body, so any 400 is retried — the status is the retry signal.
+	deletes := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deletes++
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+	err := deleteVolumeWhenDetached(context.Background(), client, volumeID, time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "still attached") {
+		t.Fatalf("expected the exhaustion error, got %v", err)
+	}
+	if deletes != 30 {
+		t.Fatalf("expected 30 delete attempts, got %d", deletes)
 	}
 }

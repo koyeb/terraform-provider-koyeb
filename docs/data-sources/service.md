@@ -41,6 +41,7 @@ data "koyeb_service" "my-service" {
 - `organization_id` (String) The organization id owning the service
 - `paused_at` (String) The date and time of when the service was last updated
 - `resumed_at` (String) The date and time of when the service was last updated
+- `service_account_id` (String) The service account ID the service runs as
 - `status` (String) The status of the service
 - `terminated_at` (String) The date and time of when the service was last updated
 - `updated_at` (String) The date and time of when the service was last updated
