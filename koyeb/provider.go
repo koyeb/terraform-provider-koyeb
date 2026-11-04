@@ -105,6 +105,9 @@ func parseAPIURL(apiURL string) (*url.URL, error) {
 	if u.Path != "" && u.Path != "/" {
 		return nil, fmt.Errorf("api_url must not carry a path, got %q", apiURL)
 	}
+	if u.RawQuery != "" || u.Fragment != "" {
+		return nil, fmt.Errorf("api_url must not carry a query or fragment, got %q", apiURL)
+	}
 	return u, nil
 }
 

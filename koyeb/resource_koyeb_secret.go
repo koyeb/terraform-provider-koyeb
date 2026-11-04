@@ -372,9 +372,8 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	body := make(map[string]interface{})
 	_, resp, err = client.SecretsApi.RevealSecret(ctx, secretId).Body(body).Execute()
-	if err != nil && (resp == nil || resp.StatusCode != 200) {
+	if err != nil {
 		return diag.Errorf("Error retrieving secret value: %s", err)
-
 	}
 
 	buffer, err := io.ReadAll(resp.Body)
@@ -389,7 +388,7 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	secretValue, ok := output["value"]
 	if !ok {
-		return diag.Errorf("Error while reading the secret value: %s", err)
+		return diag.Errorf("Error while reading the secret value: the reveal reply carries no value field")
 	}
 
 	setSecretAttribute(d, *res.Secret, secretValue)

@@ -176,3 +176,11 @@ func TestParseAPIURLRejectsPath(t *testing.T) {
 		t.Fatal("api_url with a path prefix must be rejected, not silently dropped")
 	}
 }
+
+func TestParseAPIURLRejectsQueryAndFragment(t *testing.T) {
+	for _, bad := range []string{"https://app.koyeb.com?x=1", "https://app.koyeb.com#frag"} {
+		if _, err := parseAPIURL(bad); err == nil {
+			t.Errorf("api_url %q carries a query/fragment that would be silently dropped; must be rejected", bad)
+		}
+	}
+}
