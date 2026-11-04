@@ -1651,3 +1651,46 @@ func TestResourceKoyebServiceCreateAdoptsExistingServiceOnConflict(t *testing.T)
 		t.Errorf("expected the existing service to be adopted, got id %q", d.Id())
 	}
 }
+
+// A field error on an unrelated field must not be mistaken for a name
+// conflict and trigger orphan adoption.
+func TestIsAlreadyExistsErrorIgnoresUnrelatedFieldErrors(t *testing.T) {
+	body := `{"message":"invalid request","fields":[{"field":"definition.image","description":"already exists in another registry"}]}`
+	err := koyeb.GenericOpenAPIError{}
+	_ = err
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+	_, _, apiErr := client.ServicesApi.CreateService(context.Background()).Service(koyeb.CreateService{
+		Name: toOpt("x"),
+	}).Execute()
+	if apiErr == nil {
+		t.Fatal("expected the mock server to return an error")
+	}
+	if isAlreadyExistsError(apiErr) {
+		t.Error("an unrelated field error must not classify as a name conflict")
+	}
+}
+
+// The fallback that pins the replacement deployment must surface errors
+// instead of silently waiting on the service level.
+func TestReplacementDeploymentIDPropagatesFetchError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	service := koyeb.Service{Id: toOpt("svc-id")}
+	if _, err := replacementDeploymentID(context.Background(), client, service); err == nil {
+		t.Fatal("expected the GetService error to propagate, got nil")
+	}
+}

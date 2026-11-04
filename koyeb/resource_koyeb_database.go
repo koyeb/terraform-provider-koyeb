@@ -175,8 +175,8 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 		d.SetId(id)
 		log.Printf("[INFO] Adopted existing database name: %s", d.Get("name").(string))
 	} else {
-		d.SetId(*res.Service.Id)
-		log.Printf("[INFO] Created database name: %s", *res.Service.Name)
+		d.SetId(res.Service.GetId())
+		log.Printf("[INFO] Created database name: %s", res.Service.GetName())
 	}
 
 	// A database is a service: apply should not report success before it
@@ -239,9 +239,13 @@ func resourceKoyebDatabaseUpdate(ctx context.Context, d *schema.ResourceData, me
 		return diag.Errorf("Error updating database: %s (%v %v)", err, resp, res)
 	}
 
-	log.Printf("[INFO] Updated database name: %s", *res.Service.Name)
+	log.Printf("[INFO] Updated database name: %s", res.Service.GetName())
 
-	if deploymentID := replacementDeploymentID(ctx, client, res.GetService()); deploymentID != "" {
+	deploymentID, err := replacementDeploymentID(ctx, client, res.GetService())
+	if err != nil {
+		return diag.Errorf("Error pinning the replacement deployment: %s", err)
+	}
+	if deploymentID != "" {
 		if err := waitForDeploymentReady(ctx, client, deploymentID, serviceReadinessTimeout); err != nil {
 			return diag.Errorf("Error waiting for the replacement deployment to be ready: %s", err)
 		}
@@ -336,8 +340,9 @@ func buildDatabaseDefinition(name string, pgVersion int, region, instanceType, d
 }
 
 // isAlreadyExistsError reports whether the API rejected a create because a
-// resource with the same name exists, on any field (the service conflict is
-// reported on definition.name, not name).
+// resource with the same name exists. The conflict is a 400 field error on
+// the name field (reported as definition.name for services, name otherwise),
+// so an unrelated field error must not trigger orphan adoption.
 func isAlreadyExistsError(err error) bool {
 	var openAPIError *koyeb.GenericOpenAPIError
 	if !errors.As(err, &openAPIError) {
@@ -350,7 +355,9 @@ func isAlreadyExistsError(err error) bool {
 	}
 
 	for _, f := range errorWithFields.GetFields() {
-		if strings.Contains(strings.ToLower(f.GetDescription()), "already exists") {
+		field := f.GetField()
+		if (field == "name" || field == "definition.name") &&
+			strings.Contains(strings.ToLower(f.GetDescription()), "already exists") {
 			return true
 		}
 	}

@@ -179,16 +179,19 @@ func waitForDeploymentReady(ctx context.Context, client *koyeb.APIClient, deploy
 // deployment (mirrors the Python SDK's replacement-deployment wait). The id
 // comes from the update reply, falling back to the live service; empty
 // means neither exposed one and the caller waits on the service level.
-func replacementDeploymentID(ctx context.Context, client *koyeb.APIClient, service koyeb.Service) string {
+func replacementDeploymentID(ctx context.Context, client *koyeb.APIClient, service koyeb.Service) (string, error) {
 	if id := service.GetLatestDeploymentId(); id != "" {
-		return id
+		return id, nil
 	}
 	res, resp, err := client.ServicesApi.GetService(ctx, service.GetId()).Execute()
-	if err != nil || resp == nil || resp.StatusCode != 200 {
-		return ""
+	if err != nil {
+		return "", fmt.Errorf("error fetching the live service to pin the replacement deployment: %w", err)
+	}
+	if resp == nil || resp.StatusCode != 200 {
+		return "", fmt.Errorf("unexpected reply fetching the live service to pin the replacement deployment")
 	}
 	live := res.GetService()
-	return live.GetLatestDeploymentId()
+	return live.GetLatestDeploymentId(), nil
 }
 
 func resourceKoyebService() *schema.Resource {
@@ -280,8 +283,8 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 		d.SetId(id)
 		log.Printf("[INFO] Adopted existing service name: %s", name)
 	} else {
-		d.SetId(*res.Service.Id)
-		log.Printf("[INFO] Created service name: %s", *res.Service.Name)
+		d.SetId(res.Service.GetId())
+		log.Printf("[INFO] Created service name: %s", res.Service.GetName())
 	}
 
 	// Apply should not report success while the service is still starting;
@@ -340,9 +343,13 @@ func resourceKoyebServiceUpdate(ctx context.Context, d *schema.ResourceData, met
 		return diag.Errorf("Error updating service: %s (%v %v)", err, resp, res)
 	}
 
-	log.Printf("[INFO] Updated service name: %s", *res.Service.Name)
+	log.Printf("[INFO] Updated service name: %s", res.Service.GetName())
 
-	if deploymentID := replacementDeploymentID(ctx, client, res.GetService()); deploymentID != "" {
+	deploymentID, err := replacementDeploymentID(ctx, client, res.GetService())
+	if err != nil {
+		return diag.Errorf("Error pinning the replacement deployment: %s", err)
+	}
+	if deploymentID != "" {
 		if err := waitForDeploymentReady(ctx, client, deploymentID, serviceReadinessTimeout); err != nil {
 			return diag.Errorf("Error waiting for the replacement deployment to be ready: %s", err)
 		}

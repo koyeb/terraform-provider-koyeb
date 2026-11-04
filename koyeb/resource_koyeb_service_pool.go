@@ -208,14 +208,14 @@ func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, m
 // NOTE: The update endpoint only accepts size and definition: the API cannot
 // rename a pool, so fail explicitly on a name change instead of silently
 // ignoring it. The shared definition block keeps ForceNew: true on its
-// nested `name` (deploymentDefinitionSchema in resource_koyeb_service.go),
+// nested `name` (deploymentDefinitionSchema in koyeb/definition.go),
 // so renaming the definition plans a replacement, which Terraform applies
 // as delete-then-create.
 func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	if d.HasChange("name") {
 		return diag.Errorf(
 			"Renaming service pools is not supported by the Koyeb API, pool: %s. "+
-				"Revert the name change in your configuration or recreate the pool once deletion support lands.",
+				"Revert the name change in your configuration or recreate the pool manually.",
 			d.Id(),
 		)
 	}
