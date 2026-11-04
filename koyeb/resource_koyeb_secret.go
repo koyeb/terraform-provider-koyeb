@@ -372,7 +372,13 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 
 	body := make(map[string]interface{})
 	_, resp, err = client.SecretsApi.RevealSecret(ctx, secretId).Body(body).Execute()
-	if err != nil {
+	// The pinned SDK models RevealSecretReply.value as a map, but the API
+	// returns a string, so Execute reports an unmarshal error on a 200; the
+	// raw body read below handles that case. Only fail on real errors.
+	if resp == nil {
+		return diag.Errorf("Error retrieving secret value: no response (%v)", err)
+	}
+	if resp.StatusCode != 200 && err != nil {
 		return diag.Errorf("Error retrieving secret value: %s", err)
 	}
 
