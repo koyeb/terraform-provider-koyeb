@@ -201,7 +201,7 @@ func resourceKoyebDatabaseRead(ctx context.Context, d *schema.ResourceData, meta
 	if err != nil {
 		// If the database is somehow already destroyed, mark as
 		// successfully gone
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -262,7 +262,7 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
 		// A retried destroy after a crash finds the service already gone.
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -273,10 +273,6 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 	return nil
 }
 
-// newRoleSecretName returns the name of the managed secret that will
-// hold the database role password. Secret names must start with a letter,
-// so the UUID is prefixed: bare UUIDs start with a hex digit ~62% of the
-// time and the API rejects them.
 // freeInstanceQuotaExhausted reports whether the organization has any
 // free instance left, so the acceptance tests can skip instead of failing
 // on a quota they cannot control.
@@ -305,6 +301,10 @@ func freeInstanceQuotaExhausted(ctx context.Context, client *koyeb.APIClient) (b
 	return false, nil
 }
 
+// newRoleSecretName returns the name of the managed secret that will
+// hold the database role password. Secret names must start with a letter,
+// so the UUID is prefixed: bare UUIDs start with a hex digit ~62% of the
+// time and the API rejects them.
 func newRoleSecretName() (string, error) {
 	id, err := uuid.GenerateUUID()
 	if err != nil {

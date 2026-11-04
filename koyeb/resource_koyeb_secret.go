@@ -362,7 +362,7 @@ func resourceKoyebSecretRead(ctx context.Context, d *schema.ResourceData, meta i
 	if err != nil {
 		// If the Secret is somehow already destroyed, mark as
 		// successfully gone
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -455,7 +455,7 @@ func resourceKoyebSecretDelete(ctx context.Context, d *schema.ResourceData, meta
 
 	if err != nil {
 		// A retried destroy after a crash finds the secret already gone.
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}

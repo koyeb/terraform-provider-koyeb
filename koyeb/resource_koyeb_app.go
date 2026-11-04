@@ -160,7 +160,7 @@ func resourceKoyebAppRead(ctx context.Context, d *schema.ResourceData, meta inte
 	if err != nil {
 		// If the app is somehow already destroyed, mark as
 		// successfully gone
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -180,7 +180,7 @@ func resourceKoyebAppDelete(ctx context.Context, d *schema.ResourceData, meta in
 
 	if err != nil {
 		// A retried destroy after a crash finds the app already gone.
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}

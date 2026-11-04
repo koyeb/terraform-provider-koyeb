@@ -449,3 +449,15 @@ func TestResourceDeletesTreat404AsGone(t *testing.T) {
 		})
 	}
 }
+
+func TestIsGone(t *testing.T) {
+	if isGone(nil) {
+		t.Error("a nil response (transport error) is not gone")
+	}
+	if isGone(&http.Response{StatusCode: http.StatusInternalServerError}) {
+		t.Error("a 500 is not gone")
+	}
+	if !isGone(&http.Response{StatusCode: http.StatusNotFound}) {
+		t.Error("a 404 is gone")
+	}
+}

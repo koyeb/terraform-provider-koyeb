@@ -102,7 +102,7 @@ func deleteSnapshotWhenUploaded(ctx context.Context, client *koyeb.APIClient, id
 			return nil
 		}
 		// A retried destroy after a crash finds the snapshot already gone.
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			return nil
 		}
 		if resp == nil || resp.StatusCode != 400 || !isStillUploadingError(err) {
@@ -162,7 +162,7 @@ func resourceKoyebSnapshotRead(ctx context.Context, d *schema.ResourceData, meta
 	if err != nil {
 		// If the snapshot is somehow already destroyed, mark as
 		// successfully gone
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}

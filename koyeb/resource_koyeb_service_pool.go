@@ -192,7 +192,7 @@ func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		// If the service pool is somehow already destroyed, mark as
 		// successfully gone
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -252,7 +252,7 @@ func resourceKoyebServicePoolDelete(ctx context.Context, d *schema.ResourceData,
 	res, resp, err := client.ServicePoolsApi.DeleteServicePool(ctx, d.Id()).Execute()
 	if err != nil {
 		// A retried destroy after a crash finds the pool already gone.
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}

@@ -314,7 +314,7 @@ func resourceKoyebServiceRead(ctx context.Context, d *schema.ResourceData, meta 
 	if err != nil {
 		// If the service is somehow already destroyed, mark as
 		// successfully gone
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -367,7 +367,7 @@ func resourceKoyebServiceDelete(ctx context.Context, d *schema.ResourceData, met
 	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
 		// A retried destroy after a crash finds the service already gone.
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}

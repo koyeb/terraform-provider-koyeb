@@ -195,7 +195,7 @@ func resourceKoyebServicePoolClaimRead(
 
 	res, resp, err := client.PoolClaimsApi.GetClaim(ctx, d.Id()).Execute()
 	if err != nil {
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -250,7 +250,7 @@ func resourceKoyebServicePoolClaimDelete(
 	res, resp, err := client.ServicesApi.DeleteService(ctx, serviceID).Execute()
 	if err != nil {
 		// A retried destroy after a crash finds the service already gone.
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}

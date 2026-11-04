@@ -199,7 +199,7 @@ func resourceKoyebDomainRead(ctx context.Context, d *schema.ResourceData, meta i
 	if err != nil {
 		// If the domain is somehow already destroyed, mark as
 		// successfully gone
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
@@ -253,7 +253,7 @@ func resourceKoyebDomainDelete(ctx context.Context, d *schema.ResourceData, meta
 
 	if err != nil {
 		// A retried destroy after a crash finds the domain already gone.
-		if resp != nil && resp.StatusCode == 404 {
+		if isGone(resp) {
 			d.SetId("")
 			return nil
 		}
