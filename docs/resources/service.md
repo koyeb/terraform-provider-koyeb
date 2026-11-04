@@ -63,6 +63,7 @@ resource "koyeb_service" "my-service" {
 ### Optional
 
 - `messages` (String) The status messages of the service
+- `service_account_id` (String) The service account ID to associate with the service. Set at creation time only; immutable afterwards.
 
 ### Read-Only
 

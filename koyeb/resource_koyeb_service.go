@@ -51,6 +51,13 @@ func serviceSchema() map[string]*schema.Schema {
 			Computed:    true,
 			Description: "The organization ID owning the service",
 		},
+		"service_account_id": {
+			Type:        schema.TypeString,
+			Optional:    true,
+			Computed:    true,
+			ForceNew:    true,
+			Description: "The service account ID to associate with the service. Set at creation time only; immutable afterwards.",
+		},
 		"active_deployment": {
 			Type:        schema.TypeString,
 			Computed:    true,
@@ -213,6 +220,7 @@ func setServiceAttribute(
 	d.Set("app_id", service.GetAppId())
 	// d.Set("definition", flattenDeploymentDefinition(toOpt(latestDeployment.GetDefinition())))
 	d.Set("organization_id", service.GetOrganizationId())
+	d.Set("service_account_id", service.GetServiceAccountId())
 	d.Set("active_deployment", service.GetActiveDeploymentId())
 	d.Set("latest_deployment", service.GetLatestDeploymentId())
 	d.Set("version", service.GetVersion())
@@ -225,6 +233,19 @@ func setServiceAttribute(
 	d.Set("created_at", service.GetCreatedAt().UTC().String())
 
 	return nil
+}
+
+// createServicePayload builds the CreateService body. The service account is
+// creation-only on the API, so it rides here and nowhere else.
+func createServicePayload(appId string, d *schema.ResourceData) koyeb.CreateService {
+	payload := koyeb.CreateService{
+		AppId:      &appId,
+		Definition: expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{})),
+	}
+	if sa := d.Get("service_account_id").(string); sa != "" {
+		payload.ServiceAccountId = &sa
+	}
+	return payload
 }
 
 func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
@@ -241,12 +262,7 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 		appId = id
 	}
 
-	definition := expandDeploymentDefinition(d.Get("definition").([]interface{})[0].(map[string]interface{}))
-
-	res, resp, err := client.ServicesApi.CreateService(ctx).Service(koyeb.CreateService{
-		AppId:      &appId,
-		Definition: definition,
-	}).Execute()
+	res, resp, err := client.ServicesApi.CreateService(ctx).Service(createServicePayload(appId, d)).Execute()
 	if err != nil {
 		return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
 	}
