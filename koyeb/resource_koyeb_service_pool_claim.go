@@ -134,19 +134,11 @@ func resourceKoyebServicePoolClaimCreate(
 
 	name := d.Get("pool").(string)
 
-	pools, resp, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
+	poolID, found, err := findPoolByName(ctx, client, name)
 	if err != nil {
-		return diag.Errorf("Error retrieving service pool: %s (%v %v)", err, resp, pools)
+		return diag.Errorf("Error retrieving service pool: %s", err)
 	}
-
-	var poolID string
-	for _, pool := range pools.GetServicePools() {
-		if pool.GetName() == name {
-			poolID = pool.GetId()
-			break
-		}
-	}
-	if poolID == "" {
+	if !found {
 		return diag.Errorf("No service pool found with name %s", name)
 	}
 

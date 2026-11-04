@@ -102,6 +102,9 @@ func parseAPIURL(apiURL string) (*url.URL, error) {
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, fmt.Errorf("expected an http(s) URL with a host, got %q", apiURL)
 	}
+	if u.Path != "" && u.Path != "/" {
+		return nil, fmt.Errorf("api_url must not carry a path, got %q", apiURL)
+	}
 	return u, nil
 }
 

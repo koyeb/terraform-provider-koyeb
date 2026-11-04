@@ -170,3 +170,9 @@ func TestValidateAPIURL(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAPIURLRejectsPath(t *testing.T) {
+	if _, err := parseAPIURL("https://app.koyeb.com/v2"); err == nil {
+		t.Fatal("api_url with a path prefix must be rejected, not silently dropped")
+	}
+}

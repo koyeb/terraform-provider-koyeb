@@ -209,9 +209,8 @@ func resourceKoyebServicePoolRead(ctx context.Context, d *schema.ResourceData, m
 // rename a pool, so fail explicitly on a name change instead of silently
 // ignoring it. The shared definition block keeps ForceNew: true on its
 // nested `name` (deploymentDefinitionSchema in resource_koyeb_service.go),
-// so renaming the definition plans a replacement; that apply fails at the
-// destroy step with the explicit delete error while deletion stays
-// unsupported upstream.
+// so renaming the definition plans a replacement, which Terraform applies
+// as delete-then-create.
 func resourceKoyebServicePoolUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	if d.HasChange("name") {
 		return diag.Errorf(
