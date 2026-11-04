@@ -202,9 +202,13 @@ func TestAPIResolverVolumeFollowsHasNextOnShortPage(t *testing.T) {
 		}
 		requests++
 		if r.URL.Query().Get("offset") == "0" {
-			// Short page (1 < limit 100) but has_next=true.
+			// Short page (1 < limit 100) but has_next=true; the walk must
+			// resume right after the received item, not skip to offset 100.
 			_, _ = w.Write([]byte(`{"volumes":[{"id":"vol-page0","name":"other"}],"has_next":true}`))
 			return
+		}
+		if r.URL.Query().Get("offset") != "1" {
+			t.Errorf("expected the next page at offset 1 (items received), got %q", r.URL.Query().Get("offset"))
 		}
 		_, _ = w.Write([]byte(`{"volumes":[{"id":"vol-page1","name":"my-vol"}],"has_next":false}`))
 	}))

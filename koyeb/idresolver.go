@@ -35,7 +35,7 @@ const resolverPageSize = 100
 
 // listingPage reads one page of a collection. It reports whether more
 // pages follow and whether the page held the looked-up ref.
-type listingPage func(offset int64) (more, matched bool, err error)
+type listingPage func(offset int64) (n int, more, matched bool, err error)
 
 type apiIDResolver struct {
 	client *koyeb.APIClient
@@ -49,20 +49,20 @@ func (r *apiIDResolver) App(ctx context.Context, ref string) (string, error) {
 	found := ""
 	err := resolveFromListing(ctx, "application", ref, []string{
 		"the full UUID", "the short ID (8 characters)", "the name",
-	}, func(offset int64) (bool, bool, error) {
+	}, func(offset int64) (n int, more, matched bool, err error) {
 		res, _, err := r.client.AppsApi.ListApps(ctx).
 			Limit(strconv.FormatInt(resolverPageSize, 10)).
 			Offset(strconv.FormatInt(offset, 10)).
 			Execute()
 		if err != nil {
-			return false, false, listingError("applications", err)
+			return 0, false, false, listingError("applications", err)
 		}
 		for _, app := range res.GetApps() {
 			if found == "" && refMatches(ref, app.GetId(), app.GetName()) {
 				found = app.GetId()
 			}
 		}
-		return offset+resolverPageSize < res.GetCount(), found != "", nil
+		return len(res.GetApps()), offset+resolverPageSize < res.GetCount(), found != "", nil
 	})
 	return found, err
 }
@@ -79,13 +79,13 @@ func (r *apiIDResolver) Service(ctx context.Context, ref string) (string, error)
 	}
 	err = resolveFromListing(ctx, "service", ref, []string{
 		"the full UUID", "the short ID (8 characters)", "the application name and service name separated by a slash",
-	}, func(offset int64) (bool, bool, error) {
+	}, func(offset int64) (n int, more, matched bool, err error) {
 		res, _, err := r.client.ServicesApi.ListServices(ctx).
 			Limit(strconv.FormatInt(resolverPageSize, 10)).
 			Offset(strconv.FormatInt(offset, 10)).
 			Execute()
 		if err != nil {
-			return false, false, listingError("services", err)
+			return 0, false, false, listingError("services", err)
 		}
 		for _, service := range res.GetServices() {
 			slug := appNames[service.GetAppId()] + "/" + service.GetName()
@@ -93,7 +93,7 @@ func (r *apiIDResolver) Service(ctx context.Context, ref string) (string, error)
 				found = service.GetId()
 			}
 		}
-		return offset+resolverPageSize < res.GetCount(), found != "", nil
+		return len(res.GetServices()), offset+resolverPageSize < res.GetCount(), found != "", nil
 	})
 	return found, err
 }
@@ -110,21 +110,21 @@ func (r *apiIDResolver) Database(ctx context.Context, ref string) (string, error
 	}
 	err = resolveFromListing(ctx, "database", ref, []string{
 		"the full UUID", "the short ID (8 characters)", "the application name and database name separated by a slash",
-	}, func(offset int64) (bool, bool, error) {
+	}, func(offset int64) (n int, more, matched bool, err error) {
 		res, _, err := r.client.ServicesApi.ListServices(ctx).
 			Types([]string{"DATABASE"}).
 			Limit(strconv.FormatInt(resolverPageSize, 10)).
 			Offset(strconv.FormatInt(offset, 10)).
 			Execute()
 		if err != nil {
-			return false, false, listingError("databases", err)
+			return 0, false, false, listingError("databases", err)
 		}
 		for _, service := range res.GetServices() {
 			if found == "" && refMatchesDatabase(ref, service, appNames[service.GetAppId()]) {
 				found = service.GetId()
 			}
 		}
-		return offset+resolverPageSize < res.GetCount(), found != "", nil
+		return len(res.GetServices()), offset+resolverPageSize < res.GetCount(), found != "", nil
 	})
 	return found, err
 }
@@ -137,20 +137,20 @@ func (r *apiIDResolver) Secret(ctx context.Context, ref string) (string, error) 
 	found := ""
 	err := resolveFromListing(ctx, "secret", ref, []string{
 		"the full UUID", "the short ID (8 characters)", "the name",
-	}, func(offset int64) (bool, bool, error) {
+	}, func(offset int64) (n int, more, matched bool, err error) {
 		res, _, err := r.client.SecretsApi.ListSecrets(ctx).
 			Limit(strconv.FormatInt(resolverPageSize, 10)).
 			Offset(strconv.FormatInt(offset, 10)).
 			Execute()
 		if err != nil {
-			return false, false, listingError("secrets", err)
+			return 0, false, false, listingError("secrets", err)
 		}
 		for _, secret := range res.GetSecrets() {
 			if found == "" && refMatches(ref, secret.GetId(), secret.GetName()) {
 				found = secret.GetId()
 			}
 		}
-		return offset+resolverPageSize < res.GetCount(), found != "", nil
+		return len(res.GetSecrets()), offset+resolverPageSize < res.GetCount(), found != "", nil
 	})
 	return found, err
 }
@@ -163,13 +163,13 @@ func (r *apiIDResolver) Volume(ctx context.Context, ref string) (string, error) 
 	found := ""
 	err := resolveFromListing(ctx, "volume", ref, []string{
 		"the full UUID", "the short ID (8 characters)", "the name",
-	}, func(offset int64) (bool, bool, error) {
+	}, func(offset int64) (n int, more, matched bool, err error) {
 		res, _, err := r.client.PersistentVolumesApi.ListPersistentVolumes(ctx).
 			Limit(strconv.FormatInt(resolverPageSize, 10)).
 			Offset(strconv.FormatInt(offset, 10)).
 			Execute()
 		if err != nil {
-			return false, false, listingError("volumes", err)
+			return 0, false, false, listingError("volumes", err)
 		}
 		for _, volume := range res.GetVolumes() {
 			if found == "" && refMatches(ref, volume.GetId(), volume.GetName()) {
@@ -178,7 +178,7 @@ func (r *apiIDResolver) Volume(ctx context.Context, ref string) (string, error) 
 		}
 		// Volume listings carry has_next, not a count: a short page can
 		// still have a next one when the server caps the page size.
-		return res.GetHasNext(), found != "", nil
+		return len(res.GetVolumes()), res.GetHasNext(), found != "", nil
 	})
 	return found, err
 }
@@ -191,13 +191,13 @@ func (r *apiIDResolver) Snapshot(ctx context.Context, ref string) (string, error
 	found := ""
 	err := resolveFromListing(ctx, "snapshot", ref, []string{
 		"the full UUID", "the short ID (8 characters)", "the name",
-	}, func(offset int64) (bool, bool, error) {
+	}, func(offset int64) (n int, more, matched bool, err error) {
 		res, _, err := r.client.SnapshotsApi.ListSnapshots(ctx).
 			Limit(strconv.FormatInt(resolverPageSize, 10)).
 			Offset(strconv.FormatInt(offset, 10)).
 			Execute()
 		if err != nil {
-			return false, false, listingError("snapshots", err)
+			return 0, false, false, listingError("snapshots", err)
 		}
 		for _, snapshot := range res.GetSnapshots() {
 			if found == "" && refMatches(ref, snapshot.GetId(), snapshot.GetName()) {
@@ -206,7 +206,7 @@ func (r *apiIDResolver) Snapshot(ctx context.Context, ref string) (string, error
 		}
 		// Snapshot listings carry has_next, not a count: a short page can
 		// still have a next one when the server caps the page size.
-		return res.GetHasNext(), found != "", nil
+		return len(res.GetSnapshots()), res.GetHasNext(), found != "", nil
 	})
 	return found, err
 }
@@ -219,20 +219,20 @@ func (r *apiIDResolver) Domain(ctx context.Context, ref string) (string, error) 
 	found := ""
 	err := resolveFromListing(ctx, "domain", ref, []string{
 		"the full UUID", "the short ID (8 characters)", "the name",
-	}, func(offset int64) (bool, bool, error) {
+	}, func(offset int64) (n int, more, matched bool, err error) {
 		res, _, err := r.client.DomainsApi.ListDomains(ctx).
 			Limit(strconv.FormatInt(resolverPageSize, 10)).
 			Offset(strconv.FormatInt(offset, 10)).
 			Execute()
 		if err != nil {
-			return false, false, listingError("domains", err)
+			return 0, false, false, listingError("domains", err)
 		}
 		for _, domain := range res.GetDomains() {
 			if found == "" && refMatches(ref, domain.GetId(), domain.GetName()) {
 				found = domain.GetId()
 			}
 		}
-		return offset+resolverPageSize < res.GetCount(), found != "", nil
+		return len(res.GetDomains()), offset+resolverPageSize < res.GetCount(), found != "", nil
 	})
 	return found, err
 }
@@ -265,17 +265,17 @@ func (r *apiIDResolver) appNames(ctx context.Context) (map[string]string, error)
 func resolveFromListing(ctx context.Context, kind, ref string, forms []string, page listingPage) error {
 	offset := int64(0)
 	for {
-		more, matched, err := page(offset)
+		n, more, matched, err := page(offset)
 		if err != nil {
 			return err
 		}
 		if matched {
 			return nil
 		}
-		if !more {
+		if !more || n == 0 {
 			break
 		}
-		offset += resolverPageSize
+		offset += int64(n)
 	}
 	return fmt.Errorf("could not resolve %s %q: expected %s", kind, ref, strings.Join(forms, ", "))
 }
