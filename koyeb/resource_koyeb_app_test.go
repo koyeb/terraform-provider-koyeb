@@ -300,3 +300,39 @@ func TestDataSourceKoyebAppDeleteWhenEmptyIsReadOnly(t *testing.T) {
 		t.Error("expected delete_when_empty to be computed on the data source")
 	}
 }
+
+// A crashed apply leaves the app created but unrecorded; a retry that hits
+// the name conflict must adopt the orphan instead of failing.
+func TestResourceKoyebAppCreateAdoptsExistingAppOnConflict(t *testing.T) {
+	const existingID = "d290f1ee-6c54-4b01-90e6-d7015f3f7b1f"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/apps":
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"invalid request","fields":[{"field":"name","description":"already exists"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/apps":
+			_, _ = w.Write([]byte(`{"apps":[{"id":"` + existingID + `","name":"my-app"}],"count":1,"has_next":false}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/apps/"+existingID:
+			_, _ = w.Write([]byte(`{"app":{"id":"` + existingID + `","name":"my-app"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, appSchema(), map[string]interface{}{
+		"name": "my-app",
+	})
+
+	diags := resourceKoyebAppCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+	if diags.HasError() {
+		t.Fatalf("expected the conflict to be adopted, got %v", diags)
+	}
+	if d.Id() != existingID {
+		t.Errorf("expected the existing app to be adopted, got id %q", d.Id())
+	}
+}
