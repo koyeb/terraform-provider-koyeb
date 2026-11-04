@@ -25,6 +25,10 @@ provider "koyeb" {
   #
   # Use the KOYEB_TOKEN env variable to set your Koyeb API token.
   #
+  # Optionally point the provider at another API (staging, local):
+  #   api_url = "https://staging.example.com"
+  # or set the KOYEB_API_URL env variable. Defaults to https://app.koyeb.com.
+  #
 }
 
 resource "koyeb_app" "my-app" {

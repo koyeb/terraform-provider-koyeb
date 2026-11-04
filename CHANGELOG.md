@@ -9,6 +9,7 @@ BACKWARDS INCOMPATIBILITIES / NOTES:
 
 FEATURES:
 
+* The provider accepts an `api_url` attribute (or the `KOYEB_API_URL` env variable) to point at a different Koyeb API host, e.g. staging or a local API. Defaults to `https://app.koyeb.com`.
 * `koyeb_service` accepts a `service_account_id` attribute (optional, force-new), carried on the create payload and read back on refresh, so services that reference secrets via a service account can be provisioned through terraform.
 * The shared service definition schema now accepts `type = "SANDBOX"`, matching the service pool support of the Koyeb SDKs and CLI.
 * `definition.git.credential_source` on `koyeb_service` and `koyeb_service_pool` selects the source of the Git repository credentials, mirroring the CLI's `--git-credential-source` flag: unset or `"github"` uses GitHub credentials, and `"connector:UUID"` uses the credentials of a Mistral connector (`koyeb-api-client-go@2ca96ef`).
