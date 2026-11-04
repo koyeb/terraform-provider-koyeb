@@ -252,6 +252,11 @@ func resourceKoyebDomainDelete(ctx context.Context, d *schema.ResourceData, meta
 	res, resp, err := client.DomainsApi.DeleteDomain(ctx, d.Id()).Execute()
 
 	if err != nil {
+		// A retried destroy after a crash finds the domain already gone.
+		if resp != nil && resp.StatusCode == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting domain: %s (%v %v)", err, resp, res)
 	}
 

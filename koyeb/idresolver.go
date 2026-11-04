@@ -279,6 +279,25 @@ func resolveFromListing(ctx context.Context, kind, ref string, forms []string, p
 
 // refMatches reports whether ref is the resource's name, its app/name
 // slug, or a >= 8 character prefix of its dashless UUID.
+// findServiceByName lists the app's services and returns the id of the one
+// with the given name, for adopting an orphan left by a crashed apply.
+func findServiceByName(ctx context.Context, client *koyeb.APIClient, appID, name string) (string, bool) {
+	req := client.ServicesApi.ListServices(ctx).Name(name)
+	if appID != "" {
+		req = req.AppId(appID)
+	}
+	res, _, err := req.Execute()
+	if err != nil {
+		return "", false
+	}
+	for _, s := range res.GetServices() {
+		if s.GetName() == name {
+			return s.GetId(), true
+		}
+	}
+	return "", false
+}
+
 func refMatches(ref, id, name string) bool {
 	return ref == name || isShortID(ref, id)
 }

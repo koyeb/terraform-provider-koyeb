@@ -160,11 +160,21 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 		Definition: definition,
 	}).Execute()
 	if err != nil {
-		return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
+		// A crashed apply leaves the backing service created but
+		// unrecorded; adopt the orphan on retry instead of failing.
+		if !isAlreadyExistsError(err) {
+			return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
+		}
+		id, ok := findServiceByName(ctx, client, appID, d.Get("name").(string))
+		if !ok {
+			return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
+		}
+		d.SetId(id)
+		log.Printf("[INFO] Adopted existing database name: %s", d.Get("name").(string))
+	} else {
+		d.SetId(*res.Service.Id)
+		log.Printf("[INFO] Created database name: %s", *res.Service.Name)
 	}
-
-	d.SetId(*res.Service.Id)
-	log.Printf("[INFO] Created database name: %s", *res.Service.Name)
 
 	// A database is a service: apply should not report success before it
 	// is usable, matching koyeb_service.
@@ -244,6 +254,11 @@ func resourceKoyebDatabaseDelete(ctx context.Context, d *schema.ResourceData, me
 
 	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
+		// A retried destroy after a crash finds the service already gone.
+		if resp != nil && resp.StatusCode == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting database: %s (%v %v)", err, resp, res)
 	}
 
@@ -315,6 +330,28 @@ func buildDatabaseDefinition(name string, pgVersion int, region, instanceType, d
 			},
 		},
 	}
+}
+
+// isAlreadyExistsError reports whether the API rejected a create because a
+// resource with the same name exists, on any field (the service conflict is
+// reported on definition.name, not name).
+func isAlreadyExistsError(err error) bool {
+	var openAPIError *koyeb.GenericOpenAPIError
+	if !errors.As(err, &openAPIError) {
+		return false
+	}
+
+	errorWithFields, ok := openAPIError.Model().(koyeb.ErrorWithFields)
+	if !ok {
+		return false
+	}
+
+	for _, f := range errorWithFields.GetFields() {
+		if strings.Contains(strings.ToLower(f.GetDescription()), "already exists") {
+			return true
+		}
+	}
+	return false
 }
 
 // isAppNameAlreadyExistsError reports whether the CreateApp call failed

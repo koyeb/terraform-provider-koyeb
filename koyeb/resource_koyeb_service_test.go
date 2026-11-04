@@ -1580,3 +1580,74 @@ func TestExpandGitSourceEmptyCredentialSourceStaysUnset(t *testing.T) {
 		t.Errorf("expected empty credential_source to stay unset, got %q", gitSource.GetCredentialSource())
 	}
 }
+
+// SDKv2 materializes optional strings as "": only non-empty values may be
+// sent, so an unset branch/tag/sha/workdir must not go out as "".
+func TestExpandGitSourceOmitsEmptyOptionalStrings(t *testing.T) {
+	config := []interface{}{
+		map[string]interface{}{
+			"repository":        "github.com/koyeb/example",
+			"branch":            "main",
+			"tag":               "",
+			"sha":               "",
+			"workdir":           "",
+			"credential_source": "",
+			"no_deploy_on_push": false,
+		},
+	}
+
+	gitSource := expandGitSource(config)
+
+	if gitSource.GetBranch() != "main" {
+		t.Errorf("expected branch %q, got %q", "main", gitSource.GetBranch())
+	}
+	if gitSource.HasTag() || gitSource.HasSha() || gitSource.HasWorkdir() || gitSource.HasCredentialSource() {
+		t.Errorf("expected empty tag/sha/workdir/credential_source to stay unset, got tag=%q sha=%q workdir=%q cs=%q",
+			gitSource.GetTag(), gitSource.GetSha(), gitSource.GetWorkdir(), gitSource.GetCredentialSource())
+	}
+}
+
+// A crashed apply leaves the service created but unrecorded; a retry that
+// hits the name conflict must adopt the orphan instead of failing.
+func TestResourceKoyebServiceCreateAdoptsExistingServiceOnConflict(t *testing.T) {
+	shortenWaits(t)
+	const existingID = "11111111-2222-4333-8444-555555555555"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/services":
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"invalid request","fields":[{"field":"definition.name","description":"already exists"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/apps":
+			_, _ = w.Write([]byte(`{"apps":[{"id":"app-uuid","name":"my-app"}],"count":1}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/services":
+			_, _ = w.Write([]byte(`{"services":[{"id":"` + existingID + `","name":"my-service","app_id":"app-uuid","status":"HEALTHY"}],"count":1}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/services/"+existingID:
+			_, _ = w.Write([]byte(`{"service":{"id":"` + existingID + `","name":"my-service","app_id":"app-uuid","status":"HEALTHY","organization_id":"org-id","version":"1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+
+	d := schema.TestResourceDataRaw(t, resourceKoyebService().Schema, map[string]interface{}{
+		"app_name": "my-app",
+		"definition": []interface{}{
+			map[string]interface{}{
+				"name":   "my-service",
+				"docker": []interface{}{map[string]interface{}{"image": "koyeb/demo"}},
+			},
+		},
+	})
+
+	diags := resourceKoyebServiceCreate(context.Background(), d, koyeb.NewAPIClient(cfg))
+	if diags.HasError() {
+		t.Fatalf("expected the conflict to be adopted, got %v", diags)
+	}
+	if d.Id() != existingID {
+		t.Errorf("expected the existing service to be adopted, got id %q", d.Id())
+	}
+}

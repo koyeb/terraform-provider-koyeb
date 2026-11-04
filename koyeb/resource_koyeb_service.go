@@ -264,11 +264,22 @@ func resourceKoyebServiceCreate(ctx context.Context, d *schema.ResourceData, met
 
 	res, resp, err := client.ServicesApi.CreateService(ctx).Service(createServicePayload(appId, d)).Execute()
 	if err != nil {
-		return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
+		// A crashed apply leaves the service created but unrecorded; adopt
+		// the orphan on retry instead of failing forever.
+		if !isAlreadyExistsError(err) {
+			return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
+		}
+		name := d.Get("definition").([]interface{})[0].(map[string]interface{})["name"].(string)
+		id, ok := findServiceByName(ctx, client, appId, name)
+		if !ok {
+			return diag.Errorf("Error creating service: %s (%v %v)", err, resp, res)
+		}
+		d.SetId(id)
+		log.Printf("[INFO] Adopted existing service name: %s", name)
+	} else {
+		d.SetId(*res.Service.Id)
+		log.Printf("[INFO] Created service name: %s", *res.Service.Name)
 	}
-
-	d.SetId(*res.Service.Id)
-	log.Printf("[INFO] Created service name: %s", *res.Service.Name)
 
 	// Apply should not report success while the service is still starting;
 	// HEALTHY/DEGRADED is the usable set shared with the Python SDK.
@@ -345,6 +356,11 @@ func resourceKoyebServiceDelete(ctx context.Context, d *schema.ResourceData, met
 
 	res, resp, err := client.ServicesApi.DeleteService(ctx, d.Id()).Execute()
 	if err != nil {
+		// A retried destroy after a crash finds the service already gone.
+		if resp != nil && resp.StatusCode == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting service: %s (%v %v)", err, resp, res)
 	}
 

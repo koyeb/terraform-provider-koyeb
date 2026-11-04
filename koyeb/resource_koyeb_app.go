@@ -179,6 +179,11 @@ func resourceKoyebAppDelete(ctx context.Context, d *schema.ResourceData, meta in
 	res, resp, err := client.AppsApi.DeleteApp(ctx, d.Id()).Execute()
 
 	if err != nil {
+		// A retried destroy after a crash finds the app already gone.
+		if resp != nil && resp.StatusCode == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting app: %s (%v %v)", err, resp, res)
 	}
 

@@ -239,6 +239,11 @@ func resourceKoyebServicePoolDelete(ctx context.Context, d *schema.ResourceData,
 
 	res, resp, err := client.ServicePoolsApi.DeleteServicePool(ctx, d.Id()).Execute()
 	if err != nil {
+		// A retried destroy after a crash finds the pool already gone.
+		if resp != nil && resp.StatusCode == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting service pool: %s (%v %v)", err, resp, res)
 	}
 

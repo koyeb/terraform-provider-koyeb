@@ -262,6 +262,11 @@ func resourceKoyebServicePoolClaimDelete(
 
 	res, resp, err := client.ServicesApi.DeleteService(ctx, serviceID).Execute()
 	if err != nil {
+		// A retried destroy after a crash finds the service already gone.
+		if resp != nil && resp.StatusCode == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting claimed service: %s (%v %v)", err, resp, res)
 	}
 

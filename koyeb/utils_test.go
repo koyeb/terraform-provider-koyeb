@@ -406,3 +406,44 @@ func TestPoolClaimStatusPollerPassesThroughNonGoneErrors(t *testing.T) {
 		t.Fatalf("a non-gone error must not be wrapped as disappeared: %v", err)
 	}
 }
+
+// A destroy retried after a crash must succeed when the resource is already
+// gone (404), not error out.
+func TestResourceDeletesTreat404AsGone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"not found"}`))
+	}))
+	defer srv.Close()
+
+	cfg := koyeb.NewConfiguration()
+	cfg.Servers[0].URL = srv.URL
+	client := koyeb.NewAPIClient(cfg)
+
+	deletes := map[string]struct {
+		resource *schema.Resource
+		attrs    map[string]interface{}
+		del      func(context.Context, *schema.ResourceData, interface{}) diag.Diagnostics
+	}{
+		"app":      {resourceKoyebApp(), nil, resourceKoyebAppDelete},
+		"database": {resourceKoyebDatabase(), nil, resourceKoyebDatabaseDelete},
+		"domain":   {resourceKoyebDomain(), nil, resourceKoyebDomainDelete},
+		"secret":   {resourceKoyebSecret(), nil, resourceKoyebSecretDelete},
+		"service":  {resourceKoyebService(), nil, resourceKoyebServiceDelete},
+		"pool":     {resourceKoyebServicePool(), nil, resourceKoyebServicePoolDelete},
+		"claim":    {resourceKoyebServicePoolClaim(), map[string]interface{}{"service_id": "svc-uuid"}, resourceKoyebServicePoolClaimDelete},
+	}
+	for name, tc := range deletes {
+		t.Run(name, func(t *testing.T) {
+			d := schema.TestResourceDataRaw(t, tc.resource.Schema, tc.attrs)
+			d.SetId("123e4567-e89b-42d3-a456-426614174000")
+			diags := tc.del(context.Background(), d, client)
+			if diags.HasError() {
+				t.Fatalf("expected 404 to be treated as gone, got %v", diags)
+			}
+			if d.Id() != "" {
+				t.Errorf("expected the id to be cleared, got %q", d.Id())
+			}
+		})
+	}
+}

@@ -454,6 +454,11 @@ func resourceKoyebSecretDelete(ctx context.Context, d *schema.ResourceData, meta
 	res, resp, err := client.SecretsApi.DeleteSecret(ctx, d.Id()).Execute()
 
 	if err != nil {
+		// A retried destroy after a crash finds the secret already gone.
+		if resp != nil && resp.StatusCode == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.Errorf("Error deleting secret: %s (%v %v)", err, resp, res)
 	}
 
