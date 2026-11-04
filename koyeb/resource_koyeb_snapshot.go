@@ -108,7 +108,11 @@ func deleteSnapshotWhenUploaded(ctx context.Context, client *koyeb.APIClient, id
 		if resp == nil || resp.StatusCode != 400 || !isStillUploadingError(err) {
 			return err
 		}
-		time.Sleep(interval)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
 	}
 
 	return errors.New("snapshot is still being uploaded after waiting")

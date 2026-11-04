@@ -611,7 +611,9 @@ func TestResourceKoyebDatabaseCreateAdoptsExistingServiceOnConflict(t *testing.T
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/services":
 			_, _ = w.Write([]byte(`{"services":[{"id":"` + existingID + `","name":"my-db","app_id":"app-uuid","status":"HEALTHY"}],"count":1}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/services/"+existingID:
-			_, _ = w.Write([]byte(`{"service":{"id":"` + existingID + `","name":"my-db","app_id":"app-uuid","status":"HEALTHY","organization_id":"org-id","version":"1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}}`))
+			_, _ = w.Write([]byte(`{"service":{"id":"` + existingID + `","name":"my-db","app_id":"app-uuid","status":"HEALTHY","latest_deployment_id":"dep-1","organization_id":"org-id","version":"1","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/deployments/dep-1":
+			_, _ = w.Write([]byte(`{"deployment":{"id":"dep-1","definition":{"name":"my-db","type":"DATABASE","database":{"neon_postgres":{"roles":[{"name":"owner","secret":"role-adopted"}]}}}}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -631,5 +633,10 @@ func TestResourceKoyebDatabaseCreateAdoptsExistingServiceOnConflict(t *testing.T
 	}
 	if d.Id() != existingID {
 		t.Errorf("expected the existing database service to be adopted, got id %q", d.Id())
+	}
+	// The adopted orphan references the crashed attempt's role secret; the
+	// retry must recover it instead of drifting to a fresh random name.
+	if got := d.Get("role_secret").(string); got != "role-adopted" {
+		t.Errorf("expected the adopted role secret %q, got %q", "role-adopted", got)
 	}
 }

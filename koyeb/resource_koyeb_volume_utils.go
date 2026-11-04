@@ -35,7 +35,11 @@ func deleteVolumeWhenDetached(ctx context.Context, client *koyeb.APIClient, id s
 		if resp == nil || resp.StatusCode != 400 || !isStillAttachedError(err) {
 			return err
 		}
-		time.Sleep(interval)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
 	}
 
 	return errors.New("volume is still attached after waiting for the service to detach")

@@ -216,12 +216,10 @@ func resourceKoyebService() *schema.Resource {
 func setServiceAttribute(
 	d *schema.ResourceData,
 	service *koyeb.Service,
-	// latestDeployment *koyeb.Deployment,
 ) error {
 	d.SetId(service.GetId())
 	d.Set("name", service.GetName())
 	d.Set("app_id", service.GetAppId())
-	// d.Set("definition", flattenDeploymentDefinition(toOpt(latestDeployment.GetDefinition())))
 	d.Set("organization_id", service.GetOrganizationId())
 	d.Set("service_account_id", service.GetServiceAccountId())
 	d.Set("active_deployment", service.GetActiveDeploymentId())

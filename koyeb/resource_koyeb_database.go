@@ -173,6 +173,26 @@ func resourceKoyebDatabaseCreate(ctx context.Context, d *schema.ResourceData, me
 			return diag.Errorf("Error creating database: %s (%v %v)", err, resp, res)
 		}
 		d.SetId(id)
+		// The orphan references the crashed attempt's role secret; recover it
+		// from the live deployment so a retried create ends in the same state.
+		svc, _, getErr := client.ServicesApi.GetService(ctx, id).Execute()
+		if getErr != nil {
+			return diag.Errorf("Error reading the adopted database service: %s", getErr)
+		}
+		live := svc.GetService()
+		dep, _, depErr := client.DeploymentsApi.GetDeployment(ctx, live.GetLatestDeploymentId()).Execute()
+		if depErr != nil {
+			return diag.Errorf("Error reading the adopted database deployment: %s", depErr)
+		}
+		deployment := dep.GetDeployment()
+		definition := deployment.GetDefinition()
+		database := definition.GetDatabase()
+		neon := database.GetNeonPostgres()
+		roles := neon.GetRoles()
+		if len(roles) == 0 || roles[0].GetSecret() == "" {
+			return diag.Errorf("role_secret is unknown for the adopted database %s: recreate the resource or repair its state", id)
+		}
+		d.Set("role_secret", roles[0].GetSecret())
 		log.Printf("[INFO] Adopted existing database name: %s", d.Get("name").(string))
 	} else {
 		d.SetId(res.Service.GetId())
