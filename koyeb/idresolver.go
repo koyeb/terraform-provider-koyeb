@@ -279,6 +279,10 @@ func resolveFromListing(ctx context.Context, kind, ref string, forms []string, p
 
 // refMatches reports whether ref is the resource's name, its app/name
 // slug, or a >= 8 character prefix of its dashless UUID.
+func refMatches(ref, id, name string) bool {
+	return ref == name || isShortID(ref, id)
+}
+
 // findServiceByName lists the app's services and returns the id of the one
 // with the given name, for adopting an orphan left by a crashed apply.
 func findServiceByName(ctx context.Context, client *koyeb.APIClient, appID, name string) (string, bool) {
@@ -298,8 +302,19 @@ func findServiceByName(ctx context.Context, client *koyeb.APIClient, appID, name
 	return "", false
 }
 
-func refMatches(ref, id, name string) bool {
-	return ref == name || isShortID(ref, id)
+// findPoolByName lists pools and returns the id of the one with the given
+// name, for adopting an orphan left by a crashed apply.
+func findPoolByName(ctx context.Context, client *koyeb.APIClient, name string) (string, bool) {
+	res, _, err := client.ServicePoolsApi.ListServicePools(ctx).Name(name).Execute()
+	if err != nil {
+		return "", false
+	}
+	for _, p := range res.GetServicePools() {
+		if p.GetName() == name {
+			return p.GetId(), true
+		}
+	}
+	return "", false
 }
 
 // refMatchesDatabase mirrors the CLI's nine acceptable database keys:

@@ -28,6 +28,10 @@ func deleteVolumeWhenDetached(ctx context.Context, client *koyeb.APIClient, id s
 		if err == nil {
 			return nil
 		}
+		// A retried destroy after a crash finds the volume already gone.
+		if resp != nil && resp.StatusCode == 404 {
+			return nil
+		}
 		if resp == nil || resp.StatusCode != 400 || !isStillAttachedError(err) {
 			return err
 		}

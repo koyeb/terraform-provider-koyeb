@@ -156,12 +156,22 @@ func resourceKoyebServicePoolCreate(ctx context.Context, d *schema.ResourceData,
 		Definition: definition,
 	}).Execute()
 	if err != nil {
-		return diag.Errorf("Error creating service pool: %s (%v %v)", err, resp, res)
+		// A crashed apply leaves the pool created but unrecorded; adopt
+		// the orphan on retry instead of failing forever.
+		if !isAlreadyExistsError(err) {
+			return diag.Errorf("Error creating service pool: %s (%v %v)", err, resp, res)
+		}
+		id, ok := findPoolByName(ctx, client, d.Get("name").(string))
+		if !ok {
+			return diag.Errorf("Error creating service pool: %s (%v %v)", err, resp, res)
+		}
+		d.SetId(id)
+		log.Printf("[INFO] Adopted existing service pool name: %s", d.Get("name").(string))
+	} else {
+		pool := res.GetServicePool()
+		d.SetId(pool.GetId())
+		log.Printf("[INFO] Created service pool name: %s", pool.GetName())
 	}
-
-	pool := res.GetServicePool()
-	d.SetId(pool.GetId())
-	log.Printf("[INFO] Created service pool name: %s", pool.GetName())
 
 	// Pools prewarm asynchronously: apply should only report success once
 	// the pool, not just the API call, is READY.

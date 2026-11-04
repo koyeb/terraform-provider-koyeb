@@ -432,6 +432,8 @@ func TestResourceDeletesTreat404AsGone(t *testing.T) {
 		"service":  {resourceKoyebService(), nil, resourceKoyebServiceDelete},
 		"pool":     {resourceKoyebServicePool(), nil, resourceKoyebServicePoolDelete},
 		"claim":    {resourceKoyebServicePoolClaim(), map[string]interface{}{"service_id": "svc-uuid"}, resourceKoyebServicePoolClaimDelete},
+		"snapshot": {resourceKoyebSnapshot(), nil, resourceKoyebSnapshotDelete},
+		"volume":   {resourceKoyebVolume(), nil, resourceKoyebVolumeDelete},
 	}
 	for name, tc := range deletes {
 		t.Run(name, func(t *testing.T) {

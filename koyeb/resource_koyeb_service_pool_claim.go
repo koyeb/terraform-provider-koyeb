@@ -22,11 +22,6 @@ var (
 // surfacing FAILED and RELEASED immediately: neither can still become
 // FULFILLED. Cold claims provision a service on demand, so a pending
 // claim is not yet usable.
-
-// waitForClaimFulfilled polls GetClaim until the claim is FULFILLED,
-// surfacing FAILED and RELEASED immediately: neither can still become
-// FULFILLED. Cold claims provision a service on demand, so a pending
-// claim is not yet usable.
 func waitForClaimFulfilled(ctx context.Context, client *koyeb.APIClient, claimID string, timeout, interval time.Duration) error {
 	return waitForStatus(ctx, statusWait{
 		name:      fmt.Sprintf("claim %s", claimID),
