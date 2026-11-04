@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -90,8 +89,9 @@ func resourceKoyebSnapshot() *schema.Resource {
 }
 
 // deleteSnapshotWhenUploaded deletes a snapshot, tolerating the window
-// where it is still being uploaded: the API rejects the delete with
-// failed_precondition until the upload completes.
+// where it is still being uploaded: the API rejects the delete with a bare
+// 400 (failed_precondition) until the upload completes, so the status — not
+// the body text — is the retry signal.
 func deleteSnapshotWhenUploaded(ctx context.Context, client *koyeb.APIClient, id string, interval time.Duration) error {
 	// Uploading a snapshot can take several minutes on a busy volume.
 	const attempts = 60
@@ -105,7 +105,7 @@ func deleteSnapshotWhenUploaded(ctx context.Context, client *koyeb.APIClient, id
 		if isGone(resp) {
 			return nil
 		}
-		if resp == nil || resp.StatusCode != 400 || !isStillUploadingError(err) {
+		if resp == nil || resp.StatusCode != 400 {
 			return err
 		}
 		select {
@@ -118,13 +118,6 @@ func deleteSnapshotWhenUploaded(ctx context.Context, client *koyeb.APIClient, id
 	return errors.New("snapshot is still being uploaded after waiting")
 }
 
-func isStillUploadingError(err error) bool {
-	var apiErr *koyeb.GenericOpenAPIError
-	if !errors.As(err, &apiErr) {
-		return false
-	}
-	return strings.Contains(string(apiErr.Body()), "being uploaded")
-}
 
 func setSnapshotAttribute(d *schema.ResourceData, snapshot koyeb.Snapshot) error {
 	d.SetId(snapshot.GetId())

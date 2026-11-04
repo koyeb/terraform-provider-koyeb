@@ -45,9 +45,12 @@ func testSweepVolume(string) error {
 		if strings.HasPrefix(v.GetName(), testNamePrefix) {
 			log.Printf("Destroying volume %s", v.GetName())
 
-			// Services are swept first, but the detach is asynchronous.
+			// Services are swept first, but the detach is asynchronous. A
+			// volume that still cannot be deleted after the retry window
+			// clears on a later sweep, so skipping keeps the sweep useful
+			// without failing the job and skipping the whole suite.
 			if err := deleteVolumeWhenDetached(context.Background(), client, v.GetId(), 10*time.Second); err != nil {
-				return err
+				log.Printf("[WARN] skipping volume %s: %s", v.GetName(), err)
 			}
 		}
 	}
